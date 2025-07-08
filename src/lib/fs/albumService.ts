@@ -1,8 +1,10 @@
-import type { Album, MediaEntry } from "@/lib/types";
-import { isImage } from "@/lib/utils";
+import type { Album, DetachedAlbum, MediaEntry } from "@/lib/types";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import * as path from "@tauri-apps/api/path";
-import { exists, mkdir, readDir, remove, rename } from "@tauri-apps/plugin-fs";
+import { exists, mkdir, remove } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
+
+const albumCache = new Map<string, Album>();
 
 export async function buildMediaEntry(
   dir: string,
@@ -25,9 +27,14 @@ export async function buildMediaEntry(
   };
 }
 
-async function buildAlbum(dir: string): Promise<Album> {
+export async function loadAlbum(album: DetachedAlbum): Promise<Album> {
+  const cached = albumCache.get(album.path);
+  if (cached && album.files === cached.medias.length) {
+    return cached;
+  }
+
   const mediasRaw = (await invoke("get_album_media", {
-    dir,
+    dir: album.path,
   })) satisfies MediaEntry[];
   const medias: MediaEntry[] = [];
   for (const entry of mediasRaw) {
@@ -38,77 +45,81 @@ async function buildAlbum(dir: string): Promise<Album> {
     } satisfies MediaEntry);
   }
 
-  let thumb: string | null = null;
-  const thumbs = await readDir(await path.join(dir, ".room237-thumb"));
-  if (thumbs.length > 0) {
-    const thumbEntry = thumbs.find((e) => isImage(e.name));
-    if (thumbEntry) {
-      thumb = convertFileSrc(
-        await path.join(dir, ".room237-thumb", thumbEntry.name),
-      );
-    }
-  }
+  const newAlbum = { ...album, medias } as Album & { files?: number };
+  delete newAlbum.files;
+  const result = newAlbum as Album;
 
-  if (!thumb) {
-    const firstMedia = medias.find((media) => media.thumb);
-    if (firstMedia) {
-      thumb = convertFileSrc(await path.join(dir, firstMedia.thumb));
-    }
-  }
+  albumCache.set(album.path, result);
 
-  return {
-    name: await path.basename(dir),
-    medias,
-    thumb,
-    path: dir,
-  } as Album;
+  return result;
 }
 
-export async function listAlbums(rootDir: string): Promise<Album[]> {
-  const res: Album[] = [];
-  const entries = await readDir(rootDir);
-  for (const entry of entries) {
-    if (
-      entry.isDirectory &&
-      entry.name !== ".room237-thumb" &&
-      entry.name !== ".room237-meta"
-    ) {
-      res.push(await buildAlbum(await path.join(rootDir, entry.name)));
-    }
-  }
-  return res;
+export async function listAlbums(
+  rootDir: string,
+): Promise<(DetachedAlbum | Album)[]> {
+  const rawAlbums = (await invoke("get_albums_detached", {
+    rootDir,
+  })) satisfies DetachedAlbum[];
+  return rawAlbums
+    .map((album) => ({
+      ...album,
+      thumb: album.thumb ? convertFileSrc(album.thumb) : null,
+    }))
+    .map((album) => {
+      if (albumCache.has(album.path)) {
+        const cached = albumCache.get(album.path)!;
+        if (cached.medias.length === album.files) {
+          return cached;
+        }
+      }
+      return album;
+    });
 }
 
 export async function createAlbum(
   rootDir: string,
   name: string,
-): Promise<Album> {
+): Promise<void> {
   const safe = name.trim().replace(/[\/\\:]/g, "_");
   const dir = await path.join(rootDir, safe);
   if (await exists(dir)) {
     throw new Error(`Album with name "${name}" already exists.`);
   }
   await mkdir(dir, { recursive: true });
-  return buildAlbum(dir);
 }
 
 export async function deleteAlbum(album: Album): Promise<void> {
+  albumCache.delete(album.path);
   await remove(album.path, { recursive: true });
 }
 
 export async function moveMedia(
   source: Album,
-  target: Album,
+  target: Album | DetachedAlbum,
   medias: MediaEntry[],
 ): Promise<void> {
+  const errors = [];
   for (const media of medias) {
-    const sourcePath = await path.join(source.path, media.path);
-    const targetPath = await path.join(target.path, media.path);
-
-    if (await exists(targetPath)) {
-      throw new Error(`Media "${media.name}" already exists in target album.`);
+    const result = await invoke("move_media", {
+      source: source.path,
+      target: target.path,
+      media: media.name,
+    });
+    if (result !== "ok") {
+      errors.push(result);
     }
-
-    await rename(sourcePath, targetPath);
   }
+  if (errors.length > 0) {
+    toast.error(
+      `Failed to move ${errors.length} media files. Check the console for details.`,
+    );
+    console.error("Failed to move media files:", errors);
+  }
+  if (errors.length < medias.length) {
+    toast.success(
+      `Moved ${medias.length - errors.length} media files successfully.`,
+    );
+  }
+  albumCache.delete(source.path);
+  albumCache.delete(target.path);
 }

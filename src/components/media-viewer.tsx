@@ -73,7 +73,7 @@ export default function MediaViewer() {
       <VisuallyHidden>
         <DialogTitle>{item.name}</DialogTitle>
       </VisuallyHidden>
-      <DialogContent className="flex w-fit !max-w-[90vw] justify-center overflow-hidden bg-black p-0">
+      <DialogContent className="bg-background/40 flex w-fit !max-w-[90vw] justify-center overflow-hidden p-0 backdrop-blur-xl">
         {isVideo(item.name) ? (
           <video
             src={item.url}

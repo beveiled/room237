@@ -2,8 +2,15 @@
 
 import * as React from "react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
+import { motion, type Transition } from "framer-motion";
 
 import { cn } from "@/lib/utils";
+
+const springTransition = {
+  type: "spring",
+  stiffness: 700,
+  damping: 25,
+} as Transition;
 
 function Slider({
   className,
@@ -50,11 +57,21 @@ function Slider({
         />
       </SliderPrimitive.Track>
       {Array.from({ length: _values.length }, (_, index) => (
-        <SliderPrimitive.Thumb
-          data-slot="slider-thumb"
-          key={index}
-          className="border-primary bg-background ring-ring/50 block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
-        />
+        <SliderPrimitive.Thumb data-slot="slider-thumb" key={index} asChild>
+          <motion.div
+            className="border-primary bg-background ring-ring/50 block size-4 shrink-0 rounded-full border shadow-sm transition-[color,box-shadow] hover:ring-4 focus-visible:ring-4 focus-visible:outline-hidden disabled:pointer-events-none disabled:opacity-50"
+            whileHover={{
+              scale: 1.1,
+              boxShadow: "0 0 0 4px rgba(var(--ring) / 0.5)",
+            }}
+            whileTap={{ scale: 0.95 }}
+            whileFocus={{
+              scale: 1.05,
+              boxShadow: "0 0 0 4px rgba(var(--ring) / 0.5)",
+            }}
+            transition={springTransition}
+          />
+        </SliderPrimitive.Thumb>
       ))}
     </SliderPrimitive.Root>
   );

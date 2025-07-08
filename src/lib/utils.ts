@@ -79,57 +79,85 @@ export function createStackPreview(medias: MediaEntry[]): HTMLDivElement {
 export function animateFly(
   medias: MediaEntry[],
   rects: (DOMRect | undefined)[],
-  x: number,
-  y: number,
+  startX: number,
+  startY: number,
 ): void {
   const flyers: HTMLImageElement[] = [];
-  medias.forEach((media, i) => {
+
+  medias.forEach((m, i) => {
     const r = rects[i];
     if (!r) return;
-    const f = document.createElement("img");
-    f.src = media.thumb;
-    f.style.position = "fixed";
-    f.style.top = `${r.top}px`;
-    f.style.left = `${r.left}px`;
-    f.style.width = `${r.width}px`;
-    f.style.height = `${r.height}px`;
-    f.style.objectFit = "cover";
-    f.style.borderRadius = "1rem";
-    f.style.zIndex = "9999";
-    f.style.pointerEvents = "none";
-    f.style.userSelect = "none";
-    f.style.transition = "transform 0.2s linear, opacity 0.4s ease";
-    document.body.appendChild(f);
-    flyers.push(f);
+
+    const el = document.createElement("img");
+    el.src = m.thumb;
+    Object.assign(el.style, {
+      position: "fixed",
+      top: `${r.top}px`,
+      left: `${r.left}px`,
+      width: `${r.width}px`,
+      height: `${r.height}px`,
+      objectFit: "cover",
+      borderRadius: "1rem",
+      zIndex: "9999",
+      pointerEvents: "none",
+      userSelect: "none",
+      willChange: "transform",
+    });
+    document.body.appendChild(el);
+    flyers.push(el);
   });
-  let tx = x;
-  let ty = y;
-  const upd = () => {
-    flyers.forEach((f, i) => {
+
+  const itemPositions = medias.map((m, i) => {
+    const r = rects[i];
+    if (!r) return { x: 0, y: 0 };
+    return {
+      x: r.left + r.width / 2,
+      y: r.top + r.height / 2,
+    };
+  });
+  let curScale = 1;
+  const ease = 0.15;
+  let targetX = startX;
+  let targetY = startY;
+
+  let raf = requestAnimationFrame(function loop() {
+    itemPositions.forEach((pos) => {
+      pos.x += (targetX - pos.x) * ease;
+      pos.y += (targetY - pos.y) * ease;
+    });
+    curScale -= (curScale - 0.2) * ease;
+
+    flyers.forEach((el, i) => {
       const r = rects[i];
       if (!r) return;
-      f.style.transform = `translate(${tx - r.left - r.width / 2}px, ${ty - r.top - r.height / 2}px) scale(0.2)`;
+      el.style.transform = `
+        translate3d(
+          ${itemPositions[i]!.x - r.left - r.width / 2}px,
+          ${itemPositions[i]!.y - r.top - r.height / 2}px,
+          0
+        )
+        scale(${curScale})
+      `;
     });
+
+    raf = requestAnimationFrame(loop);
+  });
+
+  const move = (e: PointerEvent | DragEvent) => {
+    targetX = e.clientX;
+    targetY = e.clientY;
   };
-  requestAnimationFrame(upd);
-  const pm = (e: PointerEvent) => {
-    tx = e.clientX;
-    ty = e.clientY;
-    upd();
-  };
-  const dm = (e: DragEvent) => {
-    tx = e.clientX;
-    ty = e.clientY;
-    upd();
-  };
-  window.addEventListener("pointermove", pm);
-  window.addEventListener("dragover", dm);
-  setTimeout(() => {
-    flyers.forEach((f) => (f.style.opacity = "0"));
-    setTimeout(() => {
-      flyers.forEach((f) => f.remove());
-      window.removeEventListener("pointermove", pm);
-      window.removeEventListener("dragover", dm);
-    }, 400);
-  }, 1);
+  window.addEventListener("pointermove", move);
+  window.addEventListener("dragover", move);
+
+  requestAnimationFrame(() => {
+    setTimeout(cleanup, 400);
+  });
+
+  function cleanup() {
+    cancelAnimationFrame(raf);
+    flyers.forEach((f) => f.remove());
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("dragover", move);
+  }
 }

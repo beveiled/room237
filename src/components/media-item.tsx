@@ -45,9 +45,7 @@ export const MediaItem: React.FC<Props> = ({
   const [confirm, setConfirm] = useState(false);
   const [copying, setCopying] = useState(false);
 
-  const click = (
-    e: ReactMouseEvent<HTMLImageElement> | ReactMouseEvent<HTMLVideoElement>,
-  ) => {
+  const click = (e: ReactMouseEvent<HTMLDivElement>) => {
     const add = e.metaKey || e.ctrlKey;
     if (add) {
       e.preventDefault();
@@ -98,7 +96,7 @@ export const MediaItem: React.FC<Props> = ({
 
   return (
     <motion.div
-      data-img-url={item.thumb}
+      data-img-url={item.name}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, y: -300, transition: { duration: 0.15 } }}
@@ -111,6 +109,10 @@ export const MediaItem: React.FC<Props> = ({
       onDragStart={(e) => onDragStart(e, item)}
       style={style}
     >
+      <div
+        className="absolute top-0 right-0 bottom-0 left-0 z-10 m-auto h-full w-full"
+        onClick={click}
+      />
       <div className="text-foreground pointer-events-none absolute top-2 left-2 rounded-md bg-black/70 px-2 py-0.5 opacity-0 backdrop-blur-lg transition-all duration-150 group-hover:opacity-100">
         {dateTimestamp
           ? new Date(dateTimestamp).toLocaleDateString("en-US", {
@@ -130,7 +132,6 @@ export const MediaItem: React.FC<Props> = ({
               "block w-full cursor-pointer select-none",
               imgClassName,
             )}
-            onClick={click}
           />
           <Play className="pointer-events-none absolute top-1/2 left-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-white/80" />
         </>
@@ -142,12 +143,11 @@ export const MediaItem: React.FC<Props> = ({
             "block w-full cursor-pointer select-none",
             imgClassName,
           )}
-          onClick={click}
         />
       )}
 
       <div className="pointer-events-none absolute bottom-0 flex w-full items-end justify-end p-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-        <div className="pointer-events-auto flex gap-1">
+        <div className="pointer-events-auto z-30 flex gap-1">
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}

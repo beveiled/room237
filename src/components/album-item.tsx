@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Album } from "@/lib/types";
+import type { Album, DetachedAlbum } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { EyeOff } from "lucide-react";
@@ -10,15 +10,17 @@ import { type DragEvent as ReactDragEvent } from "react";
 import { useGallery } from "@/lib/context/gallery-context";
 
 interface AlbumItemProps {
-  album: Album;
+  album: Album | DetachedAlbum;
   active: boolean;
   onClick: () => void;
+  loading: boolean;
 }
 
 export const AlbumItem: React.FC<AlbumItemProps> = ({
   album,
   active,
   onClick,
+  loading,
 }) => {
   const { addFilesToAlbum, moveDraggedToAlbum } = useGallery();
   const [highlighted, setHighlighted] = useState(false);
@@ -53,8 +55,9 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({
       onDrop={handleDrop as unknown as React.DragEventHandler<HTMLDivElement>}
       className={cn(
         "relative mb-1 flex cursor-pointer items-center gap-2 rounded-xl border-2 p-1 pr-2 transition-colors select-none",
-        active ? "bg-white/5" : "hover:bg-white/10",
+        active || loading ? "bg-white/5" : "hover:bg-white/10",
         highlighted ? "border-primary" : "border-transparent",
+        loading && "pointer-events-none animate-pulse",
       )}
     >
       <div className="relative size-7 flex-shrink-0 overflow-hidden rounded-lg bg-white/20">
@@ -71,7 +74,11 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({
       </div>
       <span className="flex-1 truncate text-sm">{album.name}</span>
       <span className="text-muted-foreground text-sm">
-        {album.medias.length}
+        {"medias" in album && album.medias
+          ? album.medias.length
+          : "files" in album
+            ? album.files
+            : "..."}
       </span>
     </motion.div>
   );

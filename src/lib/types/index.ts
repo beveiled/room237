@@ -15,10 +15,14 @@ export interface MediaEntry {
   name: string;
 }
 
-export interface Album {
+export interface DetachedAlbum {
   path: string;
   name: string;
   thumb: string | null;
+  files: number;
+}
+
+export interface Album extends Omit<DetachedAlbum, "files"> {
   medias: MediaEntry[];
 }
 

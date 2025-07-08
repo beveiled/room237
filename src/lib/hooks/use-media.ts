@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Album, LayoutType, MediaEntry } from "@/lib/types";
-import { watchImmediate, exists } from "@tauri-apps/plugin-fs";
-import { isMedia } from "@/lib/utils";
-import { buildMediaEntry } from "../fs/albumService";
-import * as path from "@tauri-apps/api/path";
 import { getStore } from "@/lib/fs/state";
+import type { Album, LayoutType, MediaEntry } from "@/lib/types";
+import { isMedia } from "@/lib/utils";
+import * as path from "@tauri-apps/api/path";
+import { exists, watchImmediate } from "@tauri-apps/plugin-fs";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { buildMediaEntry } from "../fs/albumService";
 
 export type SortKey = "shoot" | "added" | "name";
 export type SortDir = "asc" | "desc";
@@ -61,6 +61,7 @@ export function useMedia(
       setVisibleCount(30);
       return;
     }
+    if (!("medias" in album)) return;
     setAll(album.medias);
     setVisibleCount(Math.min(album.medias.length, batch));
   }, [album, batch]);
@@ -75,6 +76,10 @@ export function useMedia(
       if (newCount >= all.length) return all.length;
       return newCount;
     });
+
+  const isFullyLoaded = useMemo(() => {
+    return all && visibleCount >= all.length;
+  }, [visibleCount, all]);
 
   const sorted = useMemo(() => {
     const arr = [...all];
@@ -108,7 +113,6 @@ export function useMedia(
     void (async () => {
       unwatch = await watchImmediate(album.path, (event) => {
         void (async () => {
-          console.log(event);
           if (typeof event.type === "string") return;
           if ("create" in event.type) {
             const entry = event.type.create;
@@ -178,7 +182,6 @@ export function useMedia(
       });
     })();
     return () => {
-      console.log("Unwatching album", album.name, unwatch);
       unwatch();
     };
   }, [album]);
@@ -191,5 +194,6 @@ export function useMedia(
     layout,
     setLayout,
     invalidateMedia,
+    isFullyLoaded,
   };
 }

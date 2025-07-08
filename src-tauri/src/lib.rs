@@ -1,8 +1,3 @@
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-use exif::{Field, In, Reader, Tag, Value};
-use ffmpeg_sidecar::{command::FfmpegCommand, ffprobe::ffprobe_path};
-use rayon::prelude::*;
-use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File},
     io::{self, BufReader, BufWriter},
@@ -10,6 +5,16 @@ use std::{
     process::{Command, ExitStatus},
     time::UNIX_EPOCH,
 };
+
+use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use exif::{Field, In, Reader, Tag, Value};
+use ffmpeg_sidecar::{command::FfmpegCommand, ffprobe::ffprobe_path};
+use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
+
+const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "webp", "avif", "gif", "bmp", "heic"];
+const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mov", "mkv", "webm", "avi", "flv", "m4v"];
+const THUMB_MAX_DIM: u32 = 450;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct FileMeta {
@@ -30,10 +35,16 @@ pub struct MediaEntry {
     name: String,
 }
 
+#[derive(Serialize)]
+pub struct AlbumItem {
+    path: String,
+    name: String,
+    files: usize,
+    thumb: Option<String>,
+}
+
 fn meta_path(meta_dir: &Path, file_name: &str) -> PathBuf {
-    let mut p = meta_dir.join(file_name);
-    p.set_extension("json");
-    p
+    meta_dir.join(format!("{}.json", file_name))
 }
 
 fn newer_than(a: &Path, b: &Path) -> io::Result<bool> {
@@ -45,7 +56,11 @@ fn heic_to_jpeg(src: &Path, dst: &Path) -> Result<(), String> {
         return Ok(());
     }
 
-    log::info!("Converting HEIC → JPEG with metadata: {} → {}", src.display(), dst.display());
+    log::info!(
+        "Converting HEIC → JPEG with metadata: {} → {}",
+        src.display(),
+        dst.display()
+    );
 
     let status = FfmpegCommand::new()
         .input(src.to_string_lossy())
@@ -135,6 +150,114 @@ fn probe(path: &str) -> Result<(Option<u64>, Option<u32>, Option<u32>), String> 
     Ok((shoot, width, height))
 }
 
+fn has_extension(path: &Path, exts: &[&str]) -> bool {
+    path.extension()
+        .and_then(|s| s.to_str())
+        .map(|e| exts.contains(&e.to_ascii_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
+fn generate_image_thumbnail(input: &Path, output: &Path) -> Result<bool, String> {
+    if output.exists() {
+        return Ok(false);
+    }
+
+    log::info!(
+        "Generating WebP thumbnail for image: {} → {}",
+        input.display(),
+        output.display()
+    );
+
+    let status: ExitStatus = FfmpegCommand::new()
+        .input(input.to_string_lossy())
+        .arg("-vf")
+        .arg(format!(
+            "scale='min({d}\\,iw)':min({d}\\,ih)':force_original_aspect_ratio=decrease",
+            d = THUMB_MAX_DIM
+        ))
+        .arg("-c:v")
+        .arg("libwebp")
+        .arg("-q:v")
+        .arg("75")
+        .arg("-compression_level")
+        .arg("3")
+        .output(output.to_string_lossy())
+        .arg("-y")
+        .spawn()
+        .map_err(|e| e.to_string())?
+        .wait()
+        .map_err(|e| e.to_string())?;
+
+    Ok(status.success())
+}
+
+fn generate_video_thumbnail(input: &Path, output: &Path) -> Result<bool, String> {
+    if output.exists() {
+        return Ok(false);
+    }
+
+    log::info!(
+        "Generating thumbnail for video: {} → {}",
+        input.display(),
+        output.display()
+    );
+
+    let status: ExitStatus = FfmpegCommand::new()
+        .arg("-ss")
+        .arg("1")
+        .input(input.to_string_lossy())
+        .arg("-frames:v")
+        .arg("1")
+        .arg("-vf")
+        .arg(format!(
+            "scale='min({d}\\,iw)':min({d}\\,ih)':force_original_aspect_ratio=decrease",
+            d = THUMB_MAX_DIM
+        ))
+        .output(output.to_string_lossy())
+        .arg("-y")
+        .spawn()
+        .map_err(|e| e.to_string())?
+        .wait()
+        .map_err(|e| e.to_string())?;
+
+    Ok(status.success())
+}
+
+fn thumb_path(original: &Path, thumb_dir: &Path) -> Result<PathBuf, String> {
+    let file_name = original
+        .file_name()
+        .ok_or_else(|| "missing filename".to_string())?
+        .to_string_lossy();
+    Ok(thumb_dir.join(format!("{}.webp", file_name)))
+}
+
+fn ensure_thumb(path: &Path, thumb_dir: &Path) -> Result<PathBuf, String> {
+    let thumb = thumb_path(path, thumb_dir)?;
+
+    if thumb.exists() && newer_than(&thumb, path).unwrap_or(false) {
+        return Ok(thumb);
+    }
+
+    match path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase()
+        .as_str()
+    {
+        ext if IMAGE_EXTENSIONS.contains(&ext) => {
+            generate_image_thumbnail(path, &thumb)?;
+        }
+        ext if VIDEO_EXTENSIONS.contains(&ext) => {
+            generate_video_thumbnail(path, &thumb)?;
+        }
+        _ => {}
+    }
+
+    Ok(thumb)
+}
+
+#[tauri::command]
 fn get_file_metadata(path: &str) -> Result<FileMeta, String> {
     let p = Path::new(path);
 
@@ -145,17 +268,14 @@ fn get_file_metadata(path: &str) -> Result<FileMeta, String> {
         .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
         .map(|d| d.as_secs());
 
-    let ext = p
+    let ext_lower = p
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
 
-    let is_image = matches!(
-        ext.as_str(),
-        "jpg" | "jpeg" | "png" | "webp" | "avif" | "heic"
-    );
-    let is_video = matches!(ext.as_str(), "mp4" | "mov" | "mkv" | "webm" | "avi");
+    let is_image = IMAGE_EXTENSIONS.contains(&ext_lower.as_str());
+    let is_video = VIDEO_EXTENSIONS.contains(&ext_lower.as_str());
 
     let (mut shoot, width, height) = if is_image || is_video {
         probe(path)?
@@ -197,97 +317,76 @@ fn get_file_metadata_cached(path: &Path, meta_dir: &Path) -> Result<FileMeta, St
     Ok(fresh)
 }
 
-fn generate_image_thumbnail(input: &Path, output: &Path, max_dim: u32) -> Result<bool, String> {
-    if output.exists() {
-        return Ok(false);
+#[tauri::command]
+fn get_albums_detached(root_dir: String) -> Result<Vec<AlbumItem>, String> {
+    log::info!("Scanning albums in {}", root_dir);
+
+    let root = PathBuf::from(&root_dir);
+    if !root.is_dir() {
+        return Err(format!("{} is not a directory", root.display()));
     }
 
-    log::info!(
-        "Generating WebP thumbnail for image: {} → {}",
-        input.display(),
-        output.display()
-    );
+    let mut albums = Vec::new();
 
-    let status: ExitStatus = FfmpegCommand::new()
-        .input(input.to_string_lossy())
-        .arg("-vf")
-        .arg(format!(
-            "scale='min({d}\\,iw)':min({d}\\,ih)':force_original_aspect_ratio=decrease",
-            d = max_dim
-        ))
-        .arg("-c:v")
-        .arg("libwebp")
-        .arg("-q:v")
-        .arg("75")
-        .arg("-compression_level")
-        .arg("3")
-        .output(output.to_string_lossy())
-        .arg("-y")
-        .spawn()
-        .map_err(|e| e.to_string())?
-        .wait()
-        .map_err(|e| e.to_string())?;
+    for entry in fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let path = entry.path();
 
-    Ok(status.success())
-}
-
-fn generate_video_thumbnail(input: &Path, output: &Path, max_dim: u32) -> Result<bool, String> {
-    if output.exists() {
-        return Ok(false);
-    }
-
-    log::info!(
-        "Generating thumbnail for video: {} → {}",
-        input.display(),
-        output.display()
-    );
-
-    let status: ExitStatus = FfmpegCommand::new()
-        .arg("-ss")
-        .arg("1")
-        .input(input.to_string_lossy())
-        .arg("-frames:v")
-        .arg("1")
-        .arg("-vf")
-        .arg(format!(
-            "scale='min({d}\\,iw)':min({d}\\,ih)':force_original_aspect_ratio=decrease",
-            d = max_dim
-        ))
-        .output(output.to_string_lossy())
-        .arg("-y")
-        .spawn()
-        .map_err(|e| e.to_string())?
-        .wait()
-        .map_err(|e| e.to_string())?;
-
-    Ok(status.success())
-}
-
-fn ensure_thumb(path: &Path, thumb_dir: &Path) -> Result<PathBuf, String> {
-    let mut thumb = thumb_dir.join(path.file_stem().ok_or_else(|| "missing stem".to_string())?);
-    thumb.set_extension("webp");
-
-    if thumb.exists() && newer_than(&thumb, path).unwrap_or(false) {
-        return Ok(thumb);
-    }
-
-    let ext = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-
-    match ext.as_str() {
-        "jpg" | "jpeg" | "png" | "webp" | "avif" | "gif" | "bmp" => {
-            generate_image_thumbnail(path, &thumb, 450)?;
+        if !path.is_dir() {
+            continue;
         }
-        "mp4" | "mov" | "mkv" | "webm" | "avi" | "flv" | "m4v" => {
-            generate_video_thumbnail(path, &thumb, 450)?;
-        }
-        _ => {}
+
+        let thumb_dir = path.join(".room237-thumb");
+        let meta_dir = path.join(".room237-meta");
+        fs::create_dir_all(&thumb_dir).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
+
+        let thumb_files: Vec<_> = fs::read_dir(&thumb_dir)
+            .map_err(|e| e.to_string())?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .collect();
+
+        let media_files: Vec<_> = fs::read_dir(&path)
+            .map_err(|e| e.to_string())?
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| has_extension(p, IMAGE_EXTENSIONS) || has_extension(p, VIDEO_EXTENSIONS))
+            .collect();
+
+        let files = media_files.len();
+
+        let thumb = if !thumb_files.is_empty() {
+            Some(thumb_files[0].to_string_lossy().into_owned())
+        } else if let Some(first_media) = media_files.first() {
+            Some(
+                ensure_thumb(first_media, &thumb_dir)?
+                    .to_string_lossy()
+                    .into_owned(),
+            )
+        } else {
+            log::warn!("No media files found in album {}", path.display());
+            None
+        };
+
+        let name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Unknown")
+            .to_string();
+
+        albums.push(AlbumItem {
+            path: path.to_string_lossy().into_owned(),
+            name,
+            thumb,
+            files,
+        });
     }
 
-    Ok(thumb)
+    albums.sort_by(|a, b| a.name.cmp(&b.name));
+    log::info!("Found {} albums", albums.len());
+
+    Ok(albums)
 }
 
 #[tauri::command]
@@ -306,11 +405,7 @@ async fn get_album_media(dir: String) -> Result<Vec<MediaEntry>, String> {
 
     for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
         let path = entry.map_err(|e| e.to_string())?.path();
-        if path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map_or(false, |e| e.eq_ignore_ascii_case("heic"))
-        {
+        if has_extension(&path, &["heic"]) {
             let mut jpeg = path.clone();
             jpeg.set_extension("jpeg");
             heic_to_jpeg(&path, &jpeg)?;
@@ -321,29 +416,9 @@ async fn get_album_media(dir: String) -> Result<Vec<MediaEntry>, String> {
         .map_err(|e| e.to_string())?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
-        .filter(|p| p.is_file())
         .filter(|p| {
-            matches!(
-                p.extension()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("")
-                    .to_ascii_lowercase()
-                    .as_str(),
-                "jpg"
-                    | "jpeg"
-                    | "png"
-                    | "webp"
-                    | "avif"
-                    | "gif"
-                    | "bmp"
-                    | "mp4"
-                    | "mov"
-                    | "mkv"
-                    | "webm"
-                    | "avi"
-                    | "flv"
-                    | "m4v"
-            )
+            p.is_file()
+                && (has_extension(p, IMAGE_EXTENSIONS) || has_extension(p, VIDEO_EXTENSIONS))
         })
         .collect();
 
@@ -367,10 +442,95 @@ async fn get_album_media(dir: String) -> Result<Vec<MediaEntry>, String> {
     Ok(entries)
 }
 
+#[tauri::command]
+fn get_album_size(dir: String) -> Result<u64, String> {
+    let dir = PathBuf::from(&dir);
+    if !dir.is_dir() {
+        return Err(format!("{} is not a directory", dir.display()));
+    }
+
+    let mut total_size = 0;
+
+    for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if !path.is_file() {
+            continue;
+        }
+
+        if has_extension(&path, IMAGE_EXTENSIONS) || has_extension(&path, VIDEO_EXTENSIONS) {
+            total_size += path.metadata().map_err(|e| e.to_string())?.len();
+        }
+    }
+
+    Ok(total_size)
+}
+
+#[tauri::command]
+fn move_media(source: String, target: String, media: String) -> Result<String, String> {
+    let source_dir = PathBuf::from(&source);
+    let target_dir = PathBuf::from(&target);
+    let media_name = PathBuf::from(&media);
+
+    if !(source_dir.exists() && source_dir.is_dir() && target_dir.exists() && target_dir.is_dir()) {
+        return Ok("Source or target directory does not exist".to_string());
+    }
+
+    let source_file = source_dir.join(&media_name);
+    let target_file = target_dir.join(media_name.file_name().unwrap());
+
+    log::info!(
+        "Moving media from {} to {}",
+        source_file.display(),
+        target_file.display()
+    );
+
+    if !source_file.is_file() || target_file.exists() {
+        return Ok("Source file does not exist or target file already exists".to_string());
+    }
+
+    fs::rename(&source_file, &target_file).map_err(|e| e.to_string())?;
+
+    let source_thumb_dir = source_dir.join(".room237-thumb");
+    let source_meta_dir = source_dir.join(".room237-meta");
+    let target_thumb_dir = target_dir.join(".room237-thumb");
+    let target_meta_dir = target_dir.join(".room237-meta");
+
+    let thumb_name = {
+        let mut os = media_name.file_name().unwrap().to_os_string();
+        os.push(".webp");
+        PathBuf::from(os)
+    };
+
+    if source_thumb_dir.join(&thumb_name).exists() {
+        fs::create_dir_all(&target_thumb_dir).map_err(|e| e.to_string())?;
+        let _ = fs::rename(
+            source_thumb_dir.join(&thumb_name),
+            target_thumb_dir.join(&thumb_name),
+        );
+    }
+
+    let meta_name = media_name.with_extension("json");
+    if source_meta_dir.join(&meta_name).exists() {
+        fs::create_dir_all(&target_meta_dir).map_err(|e| e.to_string())?;
+        let _ = fs::rename(
+            source_meta_dir.join(&meta_name),
+            target_meta_dir.join(&meta_name),
+        );
+    }
+
+    Ok("ok".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![get_album_media])
+        .invoke_handler(tauri::generate_handler![
+            get_file_metadata,
+            get_album_media,
+            get_album_size,
+            get_albums_detached,
+            move_media,
+        ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::new().build())

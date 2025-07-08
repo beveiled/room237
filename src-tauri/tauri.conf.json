@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "room237",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "dev.dgazizullin.room237",
   "build": {
     "frontendDist": "../out",
@@ -14,12 +14,17 @@
     "windows": [
       {
         "title": "",
-        "width": 1200,
-        "height": 800,
+        "width": 1280,
+        "height": 720,
+        "minWidth": 1200,
+        "minHeight": 450,
         "resizable": true,
         "fullscreen": false,
         "center": true,
-        "titleBarStyle": "Overlay"
+        "titleBarStyle": "Overlay",
+        "dragDropEnabled": false,
+        "transparent": true,
+        "decorations": false
       }
     ],
     "security": {

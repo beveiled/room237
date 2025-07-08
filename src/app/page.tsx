@@ -20,11 +20,13 @@ export default function GalleryPage() {
   return (
     <GalleryProvider>
       <AppShell>
+        {/* For some reason, if there is nothing going on on a page, Safari stops all backdrop-blur's. That's why we have a jumping square */}
+        <div className="absolute bottom-0 left-0 z-50 size-[1px] animate-bounce bg-black/10 opacity-5" />
         <ResizablePanelGroup direction="horizontal">
           <AlbumList />
-          <ResizableHandle />
+          <ResizableHandle className="opacity-0" />
           <ResizablePanel order={2}>
-            <ScrollArea className="h-screen flex-1 p-4 pt-0">
+            <ScrollArea className="h-screen flex-1 p-4 py-0">
               <MediaGridHeader />
               <MediaGrid />
             </ScrollArea>

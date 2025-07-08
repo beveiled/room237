@@ -11,7 +11,7 @@ import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
 import { useUpload } from "@/lib/hooks/use-upload";
 import { GalleryContext, type SortDir, type SortKey } from "./gallery-context";
 import { moveMedia } from "@/lib/fs/albumService";
-import type { Album, MediaEntry } from "@/lib/types";
+import type { Album, DetachedAlbum, MediaEntry } from "@/lib/types";
 import { useLockscreen } from "../hooks/use-lockscreen";
 import { remove } from "@tauri-apps/plugin-fs";
 import { getStore } from "@/lib/fs/state";
@@ -76,20 +76,23 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const moveMediasToAlbum = async (t: Album, medias: MediaEntry[]) => {
+  const moveMediasToAlbum = async (
+    t: Album | DetachedAlbum,
+    medias: MediaEntry[],
+  ) => {
     if (!medias.length) return;
     await moveMedia(albumsState.activeAlbum!, t, medias);
     sel.clear();
     drag.clear();
   };
 
-  const moveSelectedToAlbum = async (t: Album) => {
+  const moveSelectedToAlbum = async (t: Album | DetachedAlbum) => {
     const medias = Array.from(sel.selection);
     if (!medias.length) return;
     await moveMediasToAlbum(t, medias);
   };
 
-  const moveDraggedToAlbum = async (t: Album) => {
+  const moveDraggedToAlbum = async (t: Album | DetachedAlbum) => {
     const medias = drag.getDragged();
     if (!medias.length) return;
     await moveMediasToAlbum(t, medias);
@@ -126,6 +129,7 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     deleteAlbum: albumsState.deleteAlbum,
     media: photosState.media,
     loadMore: photosState.loadMore,
+    isFullyLoaded: photosState.isFullyLoaded,
     invalidateMedia: photosState.invalidateMedia,
     columns,
     setColumns,
@@ -149,6 +153,7 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     locked: lock.locked,
     layout: photosState.layout,
     setLayout: photosState.setLayout,
+    loadingAlbum: albumsState.loadingAlbum,
   };
 
   return (

@@ -11,6 +11,9 @@
     "fs:allow-app-write",
     "fs:allow-app-read",
     "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-close",
+    "core:window:allow-set-fullscreen",
     {
       "identifier": "fs:scope",
       "allow": [{ "path": "**/*" }]

@@ -22,10 +22,15 @@ export function SelectionMenu() {
       {selection.size > 0 && (
         <motion.div
           key="multi-action-bar"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10 }}
-          className="border-border fixed top-4 right-4 z-50 flex flex-col gap-2 rounded-lg border bg-black/80 p-4 backdrop-blur-lg"
+          initial={{ opacity: 0, scale: 0.6, y: -10 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.7, y: -10 }}
+          transition={{
+            type: "spring",
+            stiffness: 600,
+            damping: 30,
+          }}
+          className="border-border bg-background/70 fixed top-16 right-4 z-50 flex flex-col gap-1 rounded-2xl border p-2 backdrop-blur-lg"
         >
           <Popover open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
             <PopoverTrigger asChild>
@@ -37,7 +42,7 @@ export function SelectionMenu() {
                 <Trash2 className="h-4 w-4" /> Delete ({selection.size})
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="mr-8 w-64 bg-black/60 backdrop-blur-2xl">
+            <PopoverContent className="mr-8 w-64">
               <p className="mb-2 text-sm">
                 Delete {selection.size} selected items?
               </p>
@@ -70,7 +75,7 @@ export function SelectionMenu() {
                 <SendToBack className="h-4 w-4" /> Move to
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="max-h-64 w-48 space-y-1 overflow-y-auto bg-black/60 backdrop-blur-2xl">
+            <PopoverContent className="max-h-64 w-48 space-y-1 overflow-y-auto">
               {albums
                 .filter((a) => a !== activeAlbum)
                 .map((a) => (
