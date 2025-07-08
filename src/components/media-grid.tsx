@@ -69,19 +69,17 @@ export default function MediaGrid() {
         onDragOver={over}
         onDrop={drop}
       >
-        {media.map((img) => (
+        {media.map((img, i) => (
           <MediaItem
-            key={img.file.name}
+            key={img.url}
             item={img}
             selected={selection.has(img)}
             onSelectToggle={toggleSelect}
             onDragStart={onDragStart}
-            onView={() =>
-              viewer.open(media.findIndex((p) => p.file.name === img.file.name))
-            }
+            onView={() => viewer.open(i)}
             onRequestDelete={deleteMedia}
             className="m-0 aspect-square w-full object-cover"
-            imgClassName="w-full h-full object-cover"
+            imgClassName="w-full object-cover aspect-square"
             showExtras={columns < 10}
             style={{
               borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
@@ -116,15 +114,13 @@ export default function MediaGrid() {
           >
             {col.map((img) => (
               <MediaItem
-                key={img.file.name}
+                key={img.url}
                 item={img}
                 selected={selection.has(img)}
                 onSelectToggle={toggleSelect}
                 onDragStart={onDragStart}
                 onView={() =>
-                  viewer.open(
-                    media.findIndex((p) => p.file.name === img.file.name),
-                  )
+                  viewer.open(media.findIndex((p) => p.url === img.url))
                 }
                 onRequestDelete={deleteMedia}
                 showExtras={columns < 8}
@@ -149,18 +145,14 @@ export default function MediaGrid() {
         onDragOver={over}
         onDrop={drop}
       >
-        {media.map((img) => (
-          <div key={img.file.name} className="flex items-center justify-center">
+        {media.map((img, i) => (
+          <div key={img.url} className="flex items-center justify-center">
             <MediaItem
               item={img}
               selected={selection.has(img)}
               onSelectToggle={toggleSelect}
               onDragStart={onDragStart}
-              onView={() =>
-                viewer.open(
-                  media.findIndex((p) => p.file.name === img.file.name),
-                )
-              }
+              onView={() => viewer.open(i)}
               onRequestDelete={deleteMedia}
               showExtras={columns < 8}
             />

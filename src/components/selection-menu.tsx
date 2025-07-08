@@ -75,7 +75,7 @@ export function SelectionMenu() {
                 .filter((a) => a !== activeAlbum)
                 .map((a) => (
                   <Button
-                    key={a.dirName}
+                    key={a.name}
                     variant="ghost"
                     className="w-full justify-start hover:bg-black/15"
                     onClick={() => moveSelectedToAlbum(a)}

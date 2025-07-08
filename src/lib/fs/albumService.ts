@@ -1,71 +1,99 @@
-import { MetadataManager } from "@/lib/metadata-manager";
-import { isImage, isMedia } from "@/lib/utils";
 import type { Album, MediaEntry } from "@/lib/types";
-import { ensureDirectoryHasNoHeic } from "./imageService";
+import { isImage } from "@/lib/utils";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import * as path from "@tauri-apps/api/path";
+import { exists, mkdir, readDir, remove, rename } from "@tauri-apps/plugin-fs";
 
-async function buildAlbum(
-  dir: FileSystemDirectoryHandle,
-  uncategorized = false,
-): Promise<Album> {
-  const meta = await MetadataManager.readDirMeta(dir);
-  try {
-    await ensureDirectoryHasNoHeic(dir);
-  } catch (e) {
-    console.log("Failed to ensure directory has no HEIC files:", e);
-  }
-  const images: string[] = [];
-  for await (const [name, h] of dir.entries())
-    if (h.kind === "file" && isMedia(name)) images.push(name);
-
-  let thumb: string | null = null;
-  try {
-    const thumbDir = await dir.getDirectoryHandle(".room237-thumb", {
-      create: false,
-    });
-    for await (const [name, h] of thumbDir.entries())
-      if (h.kind === "file" && isImage(name)) {
-        const handle = h as FileSystemFileHandle;
-        thumb = URL.createObjectURL(await handle.getFile());
-        if (thumb) break;
-      }
-  } catch {}
+export async function buildMediaEntry(
+  dir: string,
+  file: string,
+  revalidate = false,
+): Promise<MediaEntry> {
+  const mediaPath = await path.join(dir, file);
+  const thumbPath = await path.join(
+    dir,
+    ".room237-thumb",
+    file.replace(/\.[^.]+$/, ".webp"),
+  );
 
   return {
-    dirName: uncategorized ? "__UNSORTED__" : dir.name,
-    name: uncategorized ? "Uncategorized" : (meta.name ?? dir.name),
-    images,
-    handle: dir,
+    url: convertFileSrc(mediaPath) + (revalidate ? `?t=${Date.now()}` : ""),
+    thumb: convertFileSrc(thumbPath) + (revalidate ? `?t=${Date.now()}` : ""),
+    meta: await invoke("get_file_metadata", { path: mediaPath }),
+    path: mediaPath,
+    name: file,
+  };
+}
+
+async function buildAlbum(dir: string): Promise<Album> {
+  const mediasRaw = (await invoke("get_album_media", {
+    dir,
+  })) satisfies MediaEntry[];
+  const medias: MediaEntry[] = [];
+  for (const entry of mediasRaw) {
+    medias.push({
+      ...entry,
+      url: convertFileSrc(entry.url),
+      thumb: convertFileSrc(entry.thumb),
+    } satisfies MediaEntry);
+  }
+
+  let thumb: string | null = null;
+  const thumbs = await readDir(await path.join(dir, ".room237-thumb"));
+  if (thumbs.length > 0) {
+    const thumbEntry = thumbs.find((e) => isImage(e.name));
+    if (thumbEntry) {
+      thumb = convertFileSrc(
+        await path.join(dir, ".room237-thumb", thumbEntry.name),
+      );
+    }
+  }
+
+  if (!thumb) {
+    const firstMedia = medias.find((media) => media.thumb);
+    if (firstMedia) {
+      thumb = convertFileSrc(await path.join(dir, firstMedia.thumb));
+    }
+  }
+
+  return {
+    name: await path.basename(dir),
+    medias,
     thumb,
+    path: dir,
   } as Album;
 }
 
-export async function listAlbums(
-  root: FileSystemDirectoryHandle,
-): Promise<Album[]> {
+export async function listAlbums(rootDir: string): Promise<Album[]> {
   const res: Album[] = [];
-  for await (const [, entry] of root.entries())
-    if (entry.kind === "directory" && entry.name !== ".room237-thumb")
-      res.push(await buildAlbum(entry as FileSystemDirectoryHandle));
-  res.unshift(await buildAlbum(root, true));
+  const entries = await readDir(rootDir);
+  for (const entry of entries) {
+    if (
+      entry.isDirectory &&
+      entry.name !== ".room237-thumb" &&
+      entry.name !== ".room237-meta"
+    ) {
+      res.push(await buildAlbum(await path.join(rootDir, entry.name)));
+    }
+  }
   return res;
 }
 
 export async function createAlbum(
-  root: FileSystemDirectoryHandle,
+  rootDir: string,
   name: string,
 ): Promise<Album> {
   const safe = name.trim().replace(/[\/\\:]/g, "_");
-  const dir = await root.getDirectoryHandle(safe, { create: true });
-  await MetadataManager.writeDirMeta(dir, { name });
+  const dir = await path.join(rootDir, safe);
+  if (await exists(dir)) {
+    throw new Error(`Album with name "${name}" already exists.`);
+  }
+  await mkdir(dir, { recursive: true });
   return buildAlbum(dir);
 }
 
-export async function deleteAlbum(
-  root: FileSystemDirectoryHandle,
-  album: Album,
-): Promise<void> {
-  if (album.dirName === "__UNSORTED__") return;
-  await root.removeEntry(album.dirName, { recursive: true });
+export async function deleteAlbum(album: Album): Promise<void> {
+  await remove(album.path, { recursive: true });
 }
 
 export async function moveMedia(
@@ -74,15 +102,13 @@ export async function moveMedia(
   medias: MediaEntry[],
 ): Promise<void> {
   for (const media of medias) {
-    if (target.images.includes(media.file.name)) continue;
-    const fh = await target.handle.getFileHandle(media.file.name, {
-      create: true,
-    });
-    const w = await fh.createWritable();
-    await w.write(await media.file.arrayBuffer());
-    await w.close();
-    await source.handle.removeEntry(media.file.name);
-    source.images = source.images.filter((i) => i !== media.file.name);
-    target.images.push(media.file.name);
+    const sourcePath = await path.join(source.path, media.path);
+    const targetPath = await path.join(target.path, media.path);
+
+    if (await exists(targetPath)) {
+      throw new Error(`Media "${media.name}" already exists in target album.`);
+    }
+
+    await rename(sourcePath, targetPath);
   }
 }

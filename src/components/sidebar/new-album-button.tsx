@@ -22,23 +22,35 @@ export function NewAlbumButton() {
           <Plus className="h-4 w-4" /> New album
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 space-y-2">
+      <PopoverContent className="ml-16 w-64 space-y-2">
         <Input
           value={txt}
           onChange={(e) => setTxt(e.target.value)}
           placeholder="Album name"
         />
-        <Button
-          disabled={!txt.trim()}
-          onClick={async () => {
-            await createAlbum(txt.trim());
-            setTxt("");
-            setOpen(false);
-          }}
-          className="w-full"
-        >
-          Create
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            disabled={!txt.trim()}
+            onClick={async () => {
+              await createAlbum(txt.trim());
+              setTxt("");
+              setOpen(false);
+            }}
+            className="flex-auto"
+          >
+            <Plus />
+            Create
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setTxt("");
+              setOpen(false);
+            }}
+          >
+            Cancel
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );

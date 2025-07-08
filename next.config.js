@@ -4,26 +4,9 @@
  */
 import "./src/env.js";
 
-/** @type {(phase: string, defaultConfig: import("next").NextConfig) => Promise<import("next").NextConfig>} */
-const nextConfig = async (phase) => {
-  /** @type {import("next").NextConfig} */
-  const nextConfig = {
-    output: "export",
-  };
-
-  if (
-    phase === "phase-production-build" ||
-    phase === "phase-production-build"
-  ) {
-    const withSerwist = (await import("@serwist/next")).default({
-      swSrc: "src/sw.ts",
-      swDest: "public/sw.js",
-      reloadOnOnline: true,
-    });
-    return withSerwist(nextConfig);
-  }
-
-  return nextConfig;
+/** @type {import("next").NextConfig} */
+const config = {
+  output: "export",
 };
 
-export default nextConfig;
+export default config;

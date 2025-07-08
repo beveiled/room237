@@ -2,9 +2,9 @@
 "use client";
 
 import type { MediaEntry } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, isImage, isVideo } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { Trash2, ClipboardCopy, Play, Loader2 } from "lucide-react";
+import { ClipboardCopy, Play, Loader2, Trash } from "lucide-react";
 import {
   useState,
   type DragEvent as ReactDragEvent,
@@ -12,6 +12,7 @@ import {
 } from "react";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
+import { readFile } from "@tauri-apps/plugin-fs";
 
 interface Props {
   item: MediaEntry;
@@ -56,34 +57,44 @@ export const MediaItem: React.FC<Props> = ({
     onView();
   };
 
-  const copyFile = async () => {
-    if (item.file.type === "image/png") {
-      await navigator.clipboard.write([
-        new ClipboardItem({ [item.file.type]: item.file }),
-      ]);
+  const copyFile = async (): Promise<Blob> => {
+    if (item.name.toLowerCase().endsWith(".png")) {
+      const file = await readFile(item.path);
+      if (!file) {
+        toast.error("Failed to read image file.");
+        throw new Error("Failed to read image file.");
+      }
+      const blob = new Blob([file], { type: "image/png" });
       toast.success("Image copied to clipboard!");
-      return;
+      return blob;
     }
-    if (!item.file.type.startsWith("image/")) return;
-    const canvas = document.createElement("canvas");
+    if (!isImage(item.name)) {
+      throw new Error("Failed to read image file.");
+    }
+
+    const file = await readFile(item.path);
+    if (!file) {
+      toast.error("Failed to read image file.");
+      throw new Error("Failed to read image file.");
+    }
+
+    const blob = new Blob([file]);
+    const imageBitmap = await createImageBitmap(blob);
+
+    const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    const img = new Image();
-    img.src = item.url();
-    await new Promise((resolve) => {
-      img.onload = resolve;
-    });
-    canvas.width = img.width;
-    canvas.height = img.height;
-    ctx.drawImage(img, 0, 0);
-    const blob = await new Promise<Blob | null>((resolve) =>
-      canvas.toBlob(resolve, "image/png"),
-    );
-    item.unload();
-    if (!blob) return;
-    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    if (!ctx) {
+      throw new Error("Failed to read image file.");
+    }
+    ctx.drawImage(imageBitmap, 0, 0);
+    const pngBlob = await canvas.convertToBlob({ type: "image/png" });
     toast.success("Image copied to clipboard!");
+    return pngBlob;
   };
+
+  let dateTimestamp;
+  if (item.meta.shoot) dateTimestamp = item.meta.shoot * 1000;
+  else if (item.meta.added) dateTimestamp = item.meta.added * 1000;
 
   return (
     <motion.div
@@ -101,10 +112,8 @@ export const MediaItem: React.FC<Props> = ({
       style={style}
     >
       <div className="text-foreground pointer-events-none absolute top-2 left-2 rounded-md bg-black/70 px-2 py-0.5 opacity-0 backdrop-blur-lg transition-all duration-150 group-hover:opacity-100">
-        {item.meta.shoot || item.meta.added
-          ? new Date(
-              item.meta.shoot ?? item.meta.added ?? 0,
-            ).toLocaleDateString("en-US", {
+        {dateTimestamp
+          ? new Date(dateTimestamp).toLocaleDateString("en-US", {
               year: "numeric",
               month: "short",
               day: "2-digit",
@@ -112,11 +121,11 @@ export const MediaItem: React.FC<Props> = ({
           : "Unknown Date"}
       </div>
 
-      {item.file.type.startsWith("video") ? (
+      {isVideo(item.name) ? (
         <>
           <img
             src={item.thumb}
-            alt={item.file.name}
+            alt={item.name}
             className={cn(
               "block w-full cursor-pointer select-none",
               imgClassName,
@@ -128,7 +137,7 @@ export const MediaItem: React.FC<Props> = ({
       ) : (
         <img
           src={item.thumb}
-          alt={item.file.name}
+          alt={item.name}
           className={cn(
             "block w-full cursor-pointer select-none",
             imgClassName,
@@ -149,9 +158,9 @@ export const MediaItem: React.FC<Props> = ({
               setConfirm(true);
             }}
           >
-            <Trash2 className="h-4 w-4" />
+            <Trash className="h-4 w-4" />
           </motion.button>
-          {item.file.type.startsWith("image/") && showExtras && (
+          {isImage(item.name) && showExtras && (
             <motion.button
               whileHover={copying ? {} : { scale: 1.1 }}
               whileTap={copying ? {} : { scale: 0.9 }}
@@ -161,7 +170,9 @@ export const MediaItem: React.FC<Props> = ({
                 e.stopPropagation();
                 setCopying(true);
                 try {
-                  await copyFile();
+                  await navigator.clipboard.write([
+                    new ClipboardItem({ "image/png": copyFile() }),
+                  ]);
                 } finally {
                   setCopying(false);
                 }
@@ -184,19 +195,20 @@ export const MediaItem: React.FC<Props> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="bg-background/70 absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 rounded-md backdrop-blur-sm"
+            className="bg-background/70 absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 backdrop-blur-sm"
           >
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-1">
               <Button
                 size="sm"
                 onClick={() => onRequestDelete(item)}
                 variant="destructive"
               >
+                <Trash className="text-red-500" />
                 Delete
               </Button>
               <Button
                 size="sm"
-                variant="secondary"
+                variant="outline"
                 onClick={() => setConfirm(false)}
               >
                 Cancel

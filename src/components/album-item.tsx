@@ -52,12 +52,12 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop as unknown as React.DragEventHandler<HTMLDivElement>}
       className={cn(
-        "relative mb-1 flex cursor-pointer items-center gap-2 rounded-lg border-2 py-1 pr-3 pl-2 transition-colors select-none",
-        active ? "bg-white/10" : "hover:bg-white/5",
+        "relative mb-1 flex cursor-pointer items-center gap-2 rounded-xl border-2 p-1 pr-2 transition-colors select-none",
+        active ? "bg-white/5" : "hover:bg-white/10",
         highlighted ? "border-primary" : "border-transparent",
       )}
     >
-      <div className="relative size-7 flex-shrink-0 overflow-hidden rounded-md bg-white/10">
+      <div className="relative size-7 flex-shrink-0 overflow-hidden rounded-lg bg-white/20">
         {album.thumb && (
           <img
             src={album.thumb}
@@ -71,7 +71,7 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({
       </div>
       <span className="flex-1 truncate text-sm">{album.name}</span>
       <span className="text-muted-foreground text-sm">
-        {album.images.length}
+        {album.medias.length}
       </span>
     </motion.div>
   );

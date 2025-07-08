@@ -16,7 +16,7 @@ export function LockOverlay({ locked }: { locked: boolean }) {
         >
           <EyeOff className="h-14 w-14" />
           <span className="text-2xl font-medium">Sensitive content</span>
-          <span className="text-muted-foreground max-w-sm text-center text-base">
+          <span className="text-secondary-foreground/50 max-w-sm text-center text-base">
             This website contains sensitive content which some people may find
             offensive or disturbing.
           </span>

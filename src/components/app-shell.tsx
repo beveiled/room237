@@ -5,7 +5,7 @@ import { LockOverlay } from "./lock-overlay";
 export default function AppShell({ children }: { children: ReactNode }) {
   const { locked } = useGallery();
   return (
-    <div className="relative flex min-h-screen select-none">
+    <div className="relative flex min-h-screen">
       {children}
       <LockOverlay locked={locked} />
     </div>

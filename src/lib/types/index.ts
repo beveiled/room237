@@ -1,27 +1,25 @@
 export type FileMeta = {
-  name?: string;
-  added?: number;
-  shoot?: number;
+  added: number | null;
+  shoot: number | null;
+  isImage: boolean;
+  isVideo: boolean;
   width?: number;
   height?: number;
 };
 
 export interface MediaEntry {
-  file: File;
-  url: () => string;
-  unload: () => void;
+  url: string;
   thumb: string;
   meta: FileMeta;
-  handle: FileSystemFileHandle;
+  path: string;
+  name: string;
 }
 
 export interface Album {
-  dirName: string;
+  path: string;
   name: string;
-  meta: FileMeta;
   thumb: string | null;
-  images: string[];
-  handle: FileSystemDirectoryHandle;
+  medias: MediaEntry[];
 }
 
 export type LayoutType = "default" | "masonry" | "apple";

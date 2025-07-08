@@ -3,38 +3,19 @@
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useGallery } from "@/lib/context/gallery-context";
-import { type MediaEntry } from "@/lib/types";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import ReactCrop, { type PercentCrop } from "react-image-crop";
 import { Button } from "./ui/button";
-import { imgThumb } from "@/lib/hooks/use-upload";
-import { cn } from "@/lib/utils";
+import { cn, isVideo } from "@/lib/utils";
+import { remove, writeFile } from "@tauri-apps/plugin-fs";
+import { Loader2 } from "lucide-react";
 
 export default function MediaViewer() {
-  const { viewer, media, activeAlbum } = useGallery();
-  const previousItemRef = useRef<MediaEntry | null>(null);
+  const { viewer, media, invalidateMedia } = useGallery();
   const [crop, setCrop] = useState<PercentCrop | undefined>(undefined);
   const [isEdit, setIsEdit] = useState(false);
-
-  useEffect(() => {
-    if (viewer.viewerIndex !== null) {
-      const item = media[viewer.viewerIndex];
-      if (item && item !== previousItemRef.current) {
-        previousItemRef.current = item;
-      }
-    } else {
-      previousItemRef.current?.unload();
-      previousItemRef.current = null;
-    }
-  }, [viewer.viewerIndex, media]);
-
-  useEffect(() => {
-    if (previousItemRef.current && viewer.viewerIndex === null) {
-      previousItemRef.current.unload();
-      previousItemRef.current = null;
-    }
-  }, [viewer.viewerIndex]);
+  const [isSaving, setIsSaving] = useState(false);
 
   if (viewer.viewerIndex === null) return null;
   const item = media[viewer.viewerIndex] ?? null;
@@ -43,7 +24,8 @@ export default function MediaViewer() {
     if (!item || !crop) return;
     const canvas = document.createElement("canvas");
     const img = new Image();
-    img.src = item.url();
+    img.crossOrigin = "anonymous";
+    img.src = item.url;
     await img.decode();
 
     const ctx = canvas.getContext("2d");
@@ -74,55 +56,27 @@ export default function MediaViewer() {
       cropHeight,
     );
 
-    const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((b) => resolve(b), item.file.type);
+    const blob = await new Promise<Blob>((resolve) => {
+      canvas.toBlob((blob) => resolve(blob!), "image/png");
     });
-    if (!blob) return;
-    const newFile = new File([blob], item.file.name, {
-      type: item.file.type,
-      lastModified: Date.now(),
-    });
-    const handle = await activeAlbum?.handle.getFileHandle(item.file.name, {
-      create: false,
-    });
-    if (handle) {
-      const writable = await handle.createWritable();
-      await writable.write(newFile);
-      await writable.close();
-      item.file = newFile;
-      item.thumb = URL.createObjectURL(newFile);
-      item.url = () => URL.createObjectURL(newFile);
-      item.unload();
-      item.unload = () => URL.revokeObjectURL(item.url());
-    }
-    const thumbDir = await activeAlbum?.handle.getDirectoryHandle(
-      ".room237-thumb",
-      {
-        create: true,
-      },
-    );
-    if (thumbDir) {
-      const thumbHandle = await thumbDir.getFileHandle(
-        `${item.file.name.replace(/\.[^.]+$/, "")}.avif`,
-        { create: true },
-      );
-      const thumbBlob = await imgThumb(newFile);
-      const thumbWritable = await thumbHandle.createWritable();
-      await thumbWritable.write(thumbBlob);
-      await thumbWritable.close();
-      item.thumb = URL.createObjectURL(thumbBlob);
-    }
+    const arrayBuffer = await blob.arrayBuffer();
+    // Close prematurely to avoid state issues
+    setIsEdit(false);
+    setCrop(undefined);
+    await writeFile(item.path, new Uint8Array(arrayBuffer));
+    await remove(item.thumb);
+    await invalidateMedia(item.name);
   };
 
   return (
     <Dialog open onOpenChange={viewer.close}>
       <VisuallyHidden>
-        <DialogTitle>{item.file.name}</DialogTitle>
+        <DialogTitle>{item.name}</DialogTitle>
       </VisuallyHidden>
       <DialogContent className="flex w-fit !max-w-[90vw] justify-center overflow-hidden bg-black p-0">
-        {item.file.type.startsWith("video") ? (
+        {isVideo(item.name) ? (
           <video
-            src={item.url()}
+            src={item.url}
             controls
             autoPlay
             className="max-h-[90vh] max-w-[90vw]"
@@ -134,13 +88,14 @@ export default function MediaViewer() {
               onChange={(_, p) => setCrop(p)}
               className="max-h-[90vh] max-w-[90vw]"
             >
-              <img src={item.url()} alt="media" />
+              <img src={item.url} alt="media" />
             </ReactCrop>
             <div className="absolute bottom-0 mt-2 flex w-full justify-end gap-2 p-2">
               <Button
                 onClick={async () => {
+                  setIsSaving(true);
                   await cropAndWrite();
-                  setIsEdit(false);
+                  setIsSaving(false);
                 }}
                 size="sm"
                 className={cn(
@@ -149,13 +104,19 @@ export default function MediaViewer() {
                     ? "cursor-not-allowed opacity-50"
                     : "",
                 )}
-                disabled={!crop || crop.width <= 0 || crop.height <= 0}
+                disabled={
+                  isSaving || !crop || crop.width <= 0 || crop.height <= 0
+                }
               >
+                {isSaving && <Loader2 />}
                 Save Crop
               </Button>
               <Button
                 variant="outline"
-                onClick={() => setIsEdit(false)}
+                onClick={() => {
+                  setIsEdit(false);
+                  setCrop(undefined);
+                }}
                 size="sm"
                 className="text-foreground rounded-3xl bg-black/50 backdrop-blur-xl hover:bg-black/60 active:bg-black/70"
               >
@@ -165,7 +126,7 @@ export default function MediaViewer() {
           </div>
         ) : (
           <img
-            src={item.url()}
+            src={item.url}
             className="max-h-[90vh] max-w-[90vw]"
             alt="media"
             onClick={() => setIsEdit(!isEdit)}

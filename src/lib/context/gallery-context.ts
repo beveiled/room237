@@ -7,8 +7,9 @@ export type SortKey = "shoot" | "added" | "name";
 export type SortDir = "asc" | "desc";
 
 type Ctx = {
-  rootDir: FileSystemDirectoryHandle | null;
+  rootDir: string | null;
   pickDirectory: () => Promise<void>;
+  albumsReady: boolean;
   albums: Album[];
   activeAlbum: Album | null;
   setActive: (id: string) => void;
@@ -16,6 +17,7 @@ type Ctx = {
   deleteAlbum: (a: Album) => Promise<void>;
   media: MediaEntry[];
   loadMore: () => void;
+  invalidateMedia: (name: string) => Promise<void>;
   columns: number;
   setColumns: (n: number) => void;
   sortKey: SortKey;

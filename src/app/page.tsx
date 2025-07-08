@@ -1,30 +1,39 @@
 "use client";
 
 import AppShell from "@/components/app-shell";
-import DirectoryPicker from "@/components/sidebar/directory-picker";
-import AlbumList from "@/components/sidebar/album-list";
 import MediaGrid from "@/components/media-grid";
-import MediaGridHeader from "@/components/ui/media-grid-header";
 import MediaViewer from "@/components/media-viewer";
-import { GalleryProvider } from "@/lib/context/gallery-provider";
-import { Toaster } from "sonner";
 import { SelectionMenu } from "@/components/selection-menu";
+import AlbumList from "@/components/sidebar/album-list";
+import DirectoryPicker from "@/components/sidebar/directory-picker";
+import MediaGridHeader from "@/components/ui/media-grid-header";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { GalleryProvider } from "@/lib/context/gallery-provider";
+import { Toaster } from "@/components/ui/sonner";
 
 export default function GalleryPage() {
   return (
     <GalleryProvider>
       <AppShell>
-        <div className="bg-background/95 border-border w-64 space-y-3 border-r p-4">
-          <DirectoryPicker />
+        <ResizablePanelGroup direction="horizontal">
           <AlbumList />
-        </div>
-        <div className="h-screen flex-1 overflow-y-auto p-4">
-          <MediaGridHeader />
-          <MediaGrid />
-        </div>
+          <ResizableHandle />
+          <ResizablePanel order={2}>
+            <ScrollArea className="h-screen flex-1 p-4">
+              <MediaGridHeader />
+              <MediaGrid />
+            </ScrollArea>
+          </ResizablePanel>
+        </ResizablePanelGroup>
         <MediaViewer />
-        <Toaster theme="dark" />
+        <Toaster />
         <SelectionMenu />
+        <DirectoryPicker />
       </AppShell>
     </GalleryProvider>
   );

@@ -19,9 +19,9 @@
 
 ## Usage recommendations
 
-To ensure the best privacy and performance, follow these recommendations:  
+To ensure the best privacy and performance, follow these recommendations:
 
-**MacOS**: 
+**MacOS**:
 
 1. Create an encrypted disk image on your primary drive ([Create a secure disk image](https://support.apple.com/et-ee/guide/disk-utility/dskutl11888/mac))
 2. Use it (or any subdirectory on it) as a root for Room 237
@@ -38,6 +38,7 @@ To ensure the best privacy and performance, follow these recommendations:
 2. Use it (or any subdirectory on it) as a root for Room 237
 
 Also...
+
 1. Use Chrome. Not Chromium, not Opera, not MS Edge.
 2. After opening the app, save it as a PWA
 3. Do not use the app to manage a huge photo library. I tested it on ~4GB library and it handles it well, but I can't guarantee it will work with larger libraries

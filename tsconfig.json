@@ -16,8 +16,7 @@
     "checkJs": false,
 
     /* Bundled projects */
-    "lib": ["dom", "dom.iterable", "ESNext", "webworker", "DOM.AsyncIterable"],
-    "types": ["@serwist/next/typings"],
+    "lib": ["dom", "dom.iterable", "ESNext", "DOM.AsyncIterable"],
     "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -38,5 +37,5 @@
     "**/*.js",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "src-tauri"]
 }
