@@ -66,7 +66,7 @@ export default function MediaGridHeader() {
   }
 
   return (
-    <div className="sticky top-0 z-50 p-2">
+    <div className="sticky top-0 z-50 p-1">
       <div className="bg-background/30 border-background/10 shadow-background/20 mb-3 flex items-center justify-between rounded-3xl border p-2 shadow-lg backdrop-blur-xl">
         <div
           className={cn(

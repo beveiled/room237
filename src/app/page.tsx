@@ -24,7 +24,7 @@ export default function GalleryPage() {
           <AlbumList />
           <ResizableHandle />
           <ResizablePanel order={2}>
-            <ScrollArea className="h-screen flex-1 p-4">
+            <ScrollArea className="h-screen flex-1 p-4 pt-0">
               <MediaGridHeader />
               <MediaGrid />
             </ScrollArea>
