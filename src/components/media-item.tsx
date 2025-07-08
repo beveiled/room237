@@ -24,6 +24,7 @@ interface Props {
   ) => void;
   onView: () => void;
   onRequestDelete: (i: MediaEntry) => void;
+  locked: boolean;
   className?: string;
   imgClassName?: string;
   showExtras?: boolean;
@@ -37,6 +38,7 @@ export const MediaItem: React.FC<Props> = ({
   onDragStart,
   onView,
   onRequestDelete,
+  locked,
   className,
   imgClassName,
   showExtras = true,
@@ -101,16 +103,17 @@ export const MediaItem: React.FC<Props> = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, y: -300, transition: { duration: 0.15 } }}
       className={cn(
-        "group relative mb-2 break-inside-avoid overflow-hidden rounded-md text-xs select-none",
+        "group border-border/50 relative mb-2 break-inside-avoid overflow-hidden rounded-md border text-xs shadow-sm select-none",
         className,
         selected && "ring-3 ring-blue-700",
+        locked && "blur-lg",
       )}
       draggable
       onDragStart={(e) => onDragStart(e, item)}
       style={style}
     >
       <div
-        className="absolute top-0 right-0 bottom-0 left-0 z-10 m-auto h-full w-full"
+        className="absolute top-0 right-0 bottom-0 left-0 z-10 m-auto h-full w-full cursor-pointer"
         onClick={click}
       />
       <div className="text-foreground pointer-events-none absolute top-2 left-2 rounded-md bg-black/70 px-2 py-0.5 opacity-0 backdrop-blur-lg transition-all duration-150 group-hover:opacity-100">

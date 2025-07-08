@@ -12,7 +12,7 @@ export function LockOverlay({ locked }: { locked: boolean }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1, transition: { duration: 0.05 } }}
           exit={{ opacity: 0, transition: { duration: 0.3 } }}
-          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 bg-black/70 pb-6 backdrop-blur-2xl"
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center gap-4 rounded-3xl bg-black/70 pb-6 backdrop-blur-lg"
         >
           <EyeOff className="h-14 w-14" />
           <span className="text-2xl font-medium">Sensitive content</span>

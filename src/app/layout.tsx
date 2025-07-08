@@ -15,7 +15,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="overflow-y-hidden overscroll-none">
-        <div className="bg-background/50 text-foreground h-full w-full rounded-3xl backdrop-blur-xl select-none">
+        <div
+          className="text-foreground h-full w-full rounded-3xl select-none"
+          style={{
+            backgroundImage: "url(/bg.png)",
+            backgroundSize: "128px 118,272px",
+            backgroundRepeat: "repeat",
+          }}
+        >
           {children}
         </div>
       </body>

@@ -21,6 +21,7 @@ export default function MediaGrid() {
     layout,
     loadingAlbum,
     isFullyLoaded,
+    locked,
   } = useGallery();
 
   const cols = useMemo(() => masonry(media, columns), [media, columns]);
@@ -159,6 +160,7 @@ export default function MediaGrid() {
             onDragStart={onDragStart}
             onView={() => viewer.open(i)}
             onRequestDelete={deleteMedia}
+            locked={locked}
             className="m-0 aspect-square w-full object-cover"
             imgClassName="w-full object-cover aspect-square"
             showExtras={columns < 10}
@@ -224,6 +226,7 @@ export default function MediaGrid() {
                   viewer.open(media.findIndex((p) => p.url === img.url))
                 }
                 onRequestDelete={deleteMedia}
+                locked={locked}
                 showExtras={columns < 8}
               />
             ))}
@@ -266,6 +269,7 @@ export default function MediaGrid() {
               onDragStart={onDragStart}
               onView={() => viewer.open(i)}
               onRequestDelete={deleteMedia}
+              locked={locked}
               showExtras={columns < 8}
             />
           </div>
