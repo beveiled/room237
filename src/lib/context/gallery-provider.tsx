@@ -18,7 +18,7 @@ import { remove } from "@tauri-apps/plugin-fs";
 import { getStore } from "@/lib/fs/state";
 
 export function GalleryProvider({ children }: { children: ReactNode }) {
-  const { rootDir, pickDirectory } = useRootDir();
+  const { rootDir, pickDirectory, allowOpen, setAllowOpen } = useRootDir();
   const albumsState = useAlbums(rootDir);
 
   const [columns, setColumnsInternal] = useState(4);
@@ -118,6 +118,8 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
 
   const ctx = {
     rootDir,
+    allowOpen,
+    setAllowOpen,
     pickDirectory,
     albumsReady: albumsState.albumsReady,
     albums: albumsState.albums,

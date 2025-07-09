@@ -16,7 +16,11 @@
     "core:window:allow-set-fullscreen",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "**/*" }]
+      "allow": [
+        {
+          "path": "**/*"
+        }
+      ]
     }
   ]
 }

@@ -10,6 +10,7 @@ import {
   listAlbums,
 } from "../fs/albumService";
 import { getStore } from "../fs/state";
+import { showPreloadingToast } from "../preloadingToast";
 
 export function useAlbums(rootDir: string | null) {
   const [albums, setAlbums] = useState<Album[]>([]);
@@ -55,6 +56,7 @@ export function useAlbums(rootDir: string | null) {
     setAlbums(a);
     toast.dismiss(toastId);
     setAlbumsReady(true);
+    void showPreloadingToast();
   }, [rootDir]);
 
   useEffect(() => {

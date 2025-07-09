@@ -1,13 +1,20 @@
 import { useGallery } from "@/lib/context/gallery-context";
 import { type ReactNode } from "react";
 import { LockOverlay } from "./lock-overlay";
+import ConfirmOpen from "./sidebar/confirm-open";
 
 export default function AppShell({ children }: { children: ReactNode }) {
-  const { locked } = useGallery();
+  const { locked, allowOpen } = useGallery();
   return (
     <div className="relative flex min-h-screen">
-      {children}
-      <LockOverlay locked={locked} />
+      {allowOpen ? (
+        <>
+          {children}
+          <LockOverlay locked={locked} />
+        </>
+      ) : (
+        <ConfirmOpen />
+      )}
     </div>
   );
 }

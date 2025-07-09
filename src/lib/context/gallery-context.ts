@@ -52,6 +52,8 @@ type Ctx = {
   layout: LayoutType;
   setLayout: (l: LayoutType) => void;
   loadingAlbum: string | null;
+  allowOpen: boolean;
+  setAllowOpen: (allow: boolean) => void;
 };
 
 export const GalleryContext = createContext<Ctx>(null as unknown as Ctx);

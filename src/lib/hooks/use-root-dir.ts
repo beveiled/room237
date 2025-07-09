@@ -7,6 +7,7 @@ import { exists } from "@tauri-apps/plugin-fs";
 
 export function useRootDir() {
   const [root, setRoot] = useState<string | null>(null);
+  const [allowOpen, setAllowOpen] = useState(true);
 
   const validateRoot = useCallback(async (dir: string | null) => {
     if (!dir) return false;
@@ -24,6 +25,7 @@ export function useRootDir() {
         setRoot(null);
         return;
       }
+      setAllowOpen(false);
       setRoot(storedValue ?? null);
     };
     void initializeState();
@@ -37,5 +39,5 @@ export function useRootDir() {
     await store.set("rootDir", dir);
   };
 
-  return { rootDir: root, pickDirectory };
+  return { rootDir: root, pickDirectory, allowOpen, setAllowOpen };
 }

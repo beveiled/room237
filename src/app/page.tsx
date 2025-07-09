@@ -1,6 +1,7 @@
 "use client";
 
 import AppShell from "@/components/app-shell";
+import { Controls } from "@/components/controls";
 import MediaGrid from "@/components/media-grid";
 import MediaViewer from "@/components/media-viewer";
 import { SelectionMenu } from "@/components/selection-menu";
@@ -13,12 +14,17 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { GalleryProvider } from "@/lib/context/gallery-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { GalleryProvider } from "@/lib/context/gallery-provider";
+import { attachConsole } from "@tauri-apps/plugin-log";
+import { useEffect } from "react";
 
 export default function GalleryPage() {
+  useEffect(() => void attachConsole(), []);
+
   return (
     <GalleryProvider>
+      <Controls />
       <AppShell>
         {/* For some reason, if there is nothing going on on a page, Safari stops all backdrop-blur's. That's why we have a jumping square */}
         <div className="absolute bottom-0 left-0 z-50 size-[1px] animate-bounce bg-black/10 opacity-5" />
@@ -32,11 +38,11 @@ export default function GalleryPage() {
             </ScrollArea>
           </ResizablePanel>
         </ResizablePanelGroup>
-        <MediaViewer />
-        <Toaster />
-        <SelectionMenu />
-        <DirectoryPicker />
       </AppShell>
+      <MediaViewer />
+      <Toaster />
+      <SelectionMenu />
+      <DirectoryPicker />
     </GalleryProvider>
   );
 }

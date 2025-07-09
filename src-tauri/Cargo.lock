@@ -109,6 +109,7 @@ dependencies = [
  "ffmpeg-sidecar",
  "kamadak-exif",
  "log",
+ "once_cell",
  "rayon",
  "serde",
  "serde_json",
