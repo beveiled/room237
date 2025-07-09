@@ -1,4 +1,4 @@
-![Room 237](assets/preview.png)
+![Room 237](https://github.com/user-attachments/assets/b550e292-2cfb-43d3-b723-457caaf10085)
 
 # Room 237
 
