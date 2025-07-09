@@ -1,6 +1,5 @@
 import "@/styles/globals.css";
 import "@/styles/fonts.css";
-import "react-image-crop/dist/ReactCrop.css";
 
 import { type Metadata } from "next";
 
@@ -19,7 +18,7 @@ export default function RootLayout({
           className="text-foreground h-full w-full rounded-3xl select-none"
           style={{
             backgroundImage: "url(/bg.png)",
-            backgroundSize: "128px 118,272px",
+            backgroundSize: "128px",
             backgroundRepeat: "repeat",
           }}
         >

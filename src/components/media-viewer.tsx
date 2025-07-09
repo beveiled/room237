@@ -1,143 +1,94 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useGallery } from "@/lib/context/gallery-context";
-import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
-import { useState } from "react";
-import ReactCrop, { type PercentCrop } from "react-image-crop";
-import { Button } from "./ui/button";
-import { cn, isVideo } from "@/lib/utils";
-import { remove, writeFile } from "@tauri-apps/plugin-fs";
-import { Loader2 } from "lucide-react";
+import { isVideo } from "@/lib/utils";
+import { AnimatePresence, motion } from "framer-motion";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 export default function MediaViewer() {
-  const { viewer, media, invalidateMedia } = useGallery();
-  const [crop, setCrop] = useState<PercentCrop | undefined>(undefined);
-  const [isEdit, setIsEdit] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const { viewer, media } = useGallery();
+  const [isClosing, setIsClosing] = useState(false);
 
-  if (viewer.viewerIndex === null) return null;
-  const item = media[viewer.viewerIndex] ?? null;
-  if (!item) return null;
-  const cropAndWrite = async () => {
-    if (!item || !crop) return;
-    const canvas = document.createElement("canvas");
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.src = item.url;
-    await img.decode();
+  const close = useCallback(() => {
+    setIsClosing(false);
+    viewer.close();
+  }, [viewer]);
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => e.key === "Escape" && setIsClosing(true);
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []);
 
-    const pixelRatio = window.devicePixelRatio;
-
-    const cropX = (crop.x / 100) * img.naturalWidth;
-    const cropY = (crop.y / 100) * img.naturalHeight;
-    const cropWidth = (crop.width / 100) * img.naturalWidth;
-    const cropHeight = (crop.height / 100) * img.naturalHeight;
-
-    canvas.width = Math.floor(cropWidth * pixelRatio);
-    canvas.height = Math.floor(cropHeight * pixelRatio);
-
-    ctx.scale(pixelRatio, pixelRatio);
-    ctx.imageSmoothingQuality = "high";
-
-    ctx.drawImage(
-      img,
-      cropX,
-      cropY,
-      cropWidth,
-      cropHeight,
-      0,
-      0,
-      cropWidth,
-      cropHeight,
-    );
-
-    const blob = await new Promise<Blob>((resolve) => {
-      canvas.toBlob((blob) => resolve(blob!), "image/png");
-    });
-    const arrayBuffer = await blob.arrayBuffer();
-    // Close prematurely to avoid state issues
-    setIsEdit(false);
-    setCrop(undefined);
-    await writeFile(item.path, new Uint8Array(arrayBuffer));
-    await remove(item.thumb);
-    await invalidateMedia(item.name);
-  };
-
-  return (
-    <Dialog open onOpenChange={viewer.close}>
-      <VisuallyHidden>
-        <DialogTitle>{item.name}</DialogTitle>
-      </VisuallyHidden>
-      <DialogContent className="bg-background/40 flex w-fit !max-w-[90vw] justify-center overflow-hidden p-0 backdrop-blur-xl">
-        {isVideo(item.name) ? (
-          <video
-            src={item.url}
-            controls
-            autoPlay
-            className="max-h-[90vh] max-w-[90vw]"
-          />
-        ) : isEdit ? (
-          <div className="relative flex">
-            <ReactCrop
-              crop={crop}
-              onChange={(_, p) => setCrop(p)}
-              className="max-h-[90vh] max-w-[90vw]"
-            >
-              <img src={item.url} alt="media" />
-            </ReactCrop>
-            <div className="absolute bottom-0 mt-2 flex w-full justify-end gap-2 p-2">
-              <Button
-                onClick={async () => {
-                  setIsSaving(true);
-                  await cropAndWrite();
-                  setIsSaving(false);
-                }}
-                size="sm"
-                className={cn(
-                  "text-foreground rounded-3xl bg-black/70 backdrop-blur-xl hover:bg-black/80 active:bg-black/90",
-                  !crop || crop.width <= 0 || crop.height <= 0
-                    ? "cursor-not-allowed opacity-50"
-                    : "",
-                )}
-                disabled={
-                  isSaving || !crop || crop.width <= 0 || crop.height <= 0
-                }
-              >
-                {isSaving && <Loader2 />}
-                Save Crop
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsEdit(false);
-                  setCrop(undefined);
-                }}
-                size="sm"
-                className="text-foreground rounded-3xl bg-black/50 backdrop-blur-xl hover:bg-black/60 active:bg-black/70"
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <img
-            src={item.url}
-            className="max-h-[90vh] max-w-[90vw]"
-            alt="media"
-            onClick={() => setIsEdit(!isEdit)}
-          />
-        )}
-        <img
-          src={item.thumb}
-          className="absolute inset-0 -z-10 h-full w-full object-cover blur-2xl"
-          alt="thumb"
-        />
-      </DialogContent>
-    </Dialog>
+  const item = useMemo(
+    () => (viewer.viewerIndex != null ? media[viewer.viewerIndex] : null),
+    [viewer.viewerIndex, media],
   );
+
+  const rect = useMemo(() => {
+    if (!item) return undefined;
+    const el = document.querySelector<HTMLImageElement>(
+      `[data-img-url="${item.name}"]`,
+    );
+    if (!el) return undefined;
+    const { x, y, width, height } = el.getBoundingClientRect();
+    return {
+      x: x - window.innerWidth / 2 + width / 2,
+      y: y - window.innerHeight / 2 + width / 2,
+      width,
+      height,
+      scale: 0.7,
+    };
+  }, [item]);
+
+  if (!item || typeof window === "undefined") return null;
+
+  const init = !isClosing
+    ? (rect ?? { scale: 0.9, opacity: 0 })
+    : { x: 0, y: 0, width: "auto", height: "auto", scale: 1, opacity: 1 };
+  const anim = !isClosing
+    ? { x: 0, y: 0, width: "auto", height: "auto", scale: 1, opacity: 1 }
+    : (rect ?? { scale: 0.9, opacity: 0 });
+
+  const content = (
+    <AnimatePresence>
+      <motion.div
+        key="overlay"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: isClosing ? 0 : 1 }}
+        exit={{ opacity: 0 }}
+        onClick={() => setIsClosing(true)}
+      >
+        <motion.div
+          initial={init}
+          animate={anim}
+          onAnimationComplete={() => isClosing && close()}
+          exit={{ scale: 0.9, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 600, damping: 40 }}
+          className="relative flex max-h-[90vh] max-w-[90vw]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isVideo(item.name) ? (
+            <video
+              src={item.url}
+              controls
+              autoPlay
+              className="max-h-[90vh] max-w-[90vw] rounded-3xl"
+            />
+          ) : (
+            <img
+              src={item.url}
+              className="max-h-[90vh] max-w-[90vw] rounded-3xl"
+              alt="media"
+            />
+          )}
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  );
+
+  return createPortal(content, document.body);
 }

@@ -3,13 +3,13 @@
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { isMedia } from "@/lib/utils";
-import type { Album, DetachedAlbum } from "@/lib/types";
+import type { Album } from "@/lib/types/album";
 import { writeFile } from "@tauri-apps/plugin-fs";
-import * as path from "@tauri-apps/api/path";
+import path from "path";
 
 export function useUpload(active: Album | null) {
   const addFilesToAlbum = useCallback(
-    async (album: Album | DetachedAlbum, files: FileList | File[]) => {
+    async (album: Album, files: FileList | File[]) => {
       const list = Array.from(files).filter((f) => isMedia(f.name));
       if (!list.length) return;
       let done = 0;
@@ -20,7 +20,7 @@ export function useUpload(active: Album | null) {
 
       for (const file of list) {
         await writeFile(
-          await path.join(album.path, file.name),
+          path.join(album.path, file.name),
           new Uint8Array(await file.arrayBuffer()),
         );
 

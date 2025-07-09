@@ -3,16 +3,16 @@
 
 import type { MediaEntry } from "@/lib/types";
 import { cn, isImage, isVideo } from "@/lib/utils";
+import { readFile } from "@tauri-apps/plugin-fs";
 import { AnimatePresence, motion } from "framer-motion";
-import { ClipboardCopy, Play, Loader2, Trash } from "lucide-react";
+import { ClipboardCopy, Loader2, Play, Trash, X } from "lucide-react";
 import {
   useState,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { Button } from "./ui/button";
 import { toast } from "sonner";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { Button } from "./ui/button";
 
 interface Props {
   item: MediaEntry;
@@ -100,8 +100,11 @@ export const MediaItem: React.FC<Props> = ({
     <motion.div
       data-img-url={item.name}
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      animate={selected ? { scale: 1.01, opacity: 1 } : { opacity: 1 }}
       exit={{ opacity: 0, y: -300, transition: { duration: 0.15 } }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 600, damping: 25 }}
       className={cn(
         "group border-border/50 relative mb-2 break-inside-avoid overflow-hidden rounded-md border text-xs shadow-sm select-none",
         className,
@@ -160,6 +163,7 @@ export const MediaItem: React.FC<Props> = ({
               e.stopPropagation();
               setConfirm(true);
             }}
+            onPointerDownCapture={(e) => e.stopPropagation()}
           >
             <Trash className="h-4 w-4" />
           </motion.button>
@@ -180,6 +184,7 @@ export const MediaItem: React.FC<Props> = ({
                   setCopying(false);
                 }
               }}
+              onPointerDownCapture={(e) => e.stopPropagation()}
               disabled={copying}
             >
               {copying ? (
@@ -198,23 +203,22 @@ export const MediaItem: React.FC<Props> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="bg-background/70 absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 backdrop-blur-sm"
+            className="bg-background/70 absolute inset-0 z-10 flex scale-105 flex-col items-center justify-center gap-2 backdrop-blur-sm"
           >
-            <div className="flex flex-col gap-1">
+            <div className="flex gap-1">
               <Button
                 size="sm"
                 onClick={() => onRequestDelete(item)}
                 variant="destructive"
               >
                 <Trash className="text-red-500" />
-                Delete
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setConfirm(false)}
               >
-                Cancel
+                <X />
               </Button>
             </div>
           </motion.div>

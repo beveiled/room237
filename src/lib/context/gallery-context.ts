@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { Album, DetachedAlbum, LayoutType, MediaEntry } from "@/lib/types";
+import type { LayoutType, MediaEntry } from "@/lib/types";
+import type { Album } from "@/lib/types/album";
 
 export type SortKey = "shoot" | "added" | "name";
 export type SortDir = "asc" | "desc";
@@ -10,7 +11,7 @@ type Ctx = {
   rootDir: string | null;
   pickDirectory: () => Promise<void>;
   albumsReady: boolean;
-  albums: (Album | DetachedAlbum)[];
+  albums: Album[];
   activeAlbum: Album | null;
   setActive: (id: string) => void;
   createAlbum: (n: string) => Promise<void>;
@@ -40,16 +41,13 @@ type Ctx = {
     i: MediaEntry,
   ) => void;
   getDragged: () => MediaEntry[];
-  addFilesToAlbum: (
-    a: Album | DetachedAlbum,
-    f: FileList | File[],
-  ) => Promise<void>;
+  addFilesToAlbum: (a: Album, f: FileList | File[]) => Promise<void>;
   uploadFilesToActive: (f: FileList | File[]) => Promise<void>;
-  moveDraggedToAlbum: (a: Album | DetachedAlbum) => Promise<void>;
+  moveDraggedToAlbum: (a: Album) => Promise<void>;
   deleteMedias: (medias: MediaEntry[]) => Promise<void>;
   deleteMedia: (i: MediaEntry) => Promise<void>;
   moveMediasToAlbum: (t: Album, medias: MediaEntry[]) => Promise<void>;
-  moveSelectedToAlbum: (t: Album | DetachedAlbum) => Promise<void>;
+  moveSelectedToAlbum: (t: Album) => Promise<void>;
   locked: boolean;
   layout: LayoutType;
   setLayout: (l: LayoutType) => void;

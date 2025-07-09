@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { MediaEntry } from "./types";
+import type { FileMeta, MediaEntry } from "./types";
 
 export const cn = (...i: ClassValue[]) => twMerge(clsx(i));
 
@@ -160,4 +160,28 @@ export function animateFly(
     window.removeEventListener("pointermove", move);
     window.removeEventListener("dragover", move);
   }
+}
+
+export function unpackFileMeta(packed: string): FileMeta {
+  const p = BigInt(packed);
+  const added = Number(p & ((1n << 40n) - 1n));
+  const shoot = Number((p >> 40n) & ((1n << 40n) - 1n));
+  const width = Number((p >> 80n) & ((1n << 20n) - 1n));
+  const height = Number((p >> 100n) & ((1n << 20n) - 1n));
+
+  const isImage = (p & (1n << 120n)) !== 0n;
+  const isVideo = (p & (1n << 121n)) !== 0n;
+  const hasA = (p & (1n << 122n)) !== 0n;
+  const hasS = (p & (1n << 123n)) !== 0n;
+  const hasW = (p & (1n << 124n)) !== 0n;
+  const hasH = (p & (1n << 125n)) !== 0n;
+
+  return {
+    added: hasA ? added : null,
+    shoot: hasS ? shoot : null,
+    isImage,
+    isVideo,
+    width: hasW ? width : undefined,
+    height: hasH ? height : undefined,
+  };
 }

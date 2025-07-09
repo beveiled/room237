@@ -38,7 +38,6 @@ export function useKeyboardShortcuts({
       if (viewer.viewerIndex !== null) {
         if (e.key === "ArrowLeft") viewer.prev();
         if (e.key === "ArrowRight") viewer.next();
-        if (e.key === "Escape") viewer.close();
         return;
       }
       if ((e.metaKey || e.ctrlKey) && (k === "a" || k === "ф")) {

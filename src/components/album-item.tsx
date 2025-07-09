@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Album, DetachedAlbum } from "@/lib/types";
+import type { Album } from "@/lib/types/album";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { EyeOff } from "lucide-react";
@@ -10,7 +10,7 @@ import { type DragEvent as ReactDragEvent } from "react";
 import { useGallery } from "@/lib/context/gallery-context";
 
 interface AlbumItemProps {
-  album: Album | DetachedAlbum;
+  album: Album;
   active: boolean;
   onClick: () => void;
   loading: boolean;
@@ -73,13 +73,7 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({
         </div>
       </div>
       <span className="flex-1 truncate text-sm">{album.name}</span>
-      <span className="text-muted-foreground text-sm">
-        {"medias" in album && album.medias
-          ? album.medias.length
-          : "files" in album
-            ? album.files
-            : "..."}
-      </span>
+      <span className="text-muted-foreground text-sm">{album.size}</span>
     </motion.div>
   );
 };

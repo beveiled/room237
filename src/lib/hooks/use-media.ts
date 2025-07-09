@@ -1,9 +1,10 @@
 "use client";
 
 import { getStore } from "@/lib/fs/state";
-import type { Album, LayoutType, MediaEntry } from "@/lib/types";
+import type { LayoutType, MediaEntry } from "@/lib/types";
+import type { Album } from "@/lib/types/album";
 import { isMedia } from "@/lib/utils";
-import * as path from "@tauri-apps/api/path";
+import path from "path";
 import { exists, watchImmediate } from "@tauri-apps/plugin-fs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildMediaEntry } from "../fs/albumService";
@@ -61,7 +62,7 @@ export function useMedia(
       setVisibleCount(30);
       return;
     }
-    if (!("medias" in album)) return;
+    if (!album.medias) return;
     setAll(album.medias);
     setVisibleCount(Math.min(album.medias.length, batch));
   }, [album, batch]);
@@ -101,7 +102,7 @@ export function useMedia(
     }
     setAll((p) => p.filter((i) => i.name !== name));
     if (!album) return;
-    const mediaPath = await path.join(album.path, name);
+    const mediaPath = path.join(album.path, name);
     if (await exists(mediaPath)) {
       addEntry(await buildMediaEntry(album.path, name, true));
     }
@@ -119,18 +120,13 @@ export function useMedia(
             if (entry.kind !== "file") return;
             for (const mediaPath of event.paths) {
               if (
-                (await path.normalize(mediaPath)) !==
-                (await path.normalize(
-                  await path.join(album.path, await path.basename(mediaPath)),
-                ))
+                path.normalize(mediaPath) !==
+                path.normalize(path.join(album.path, path.basename(mediaPath)))
               )
                 return;
               if (isMedia(mediaPath)) {
                 addEntry(
-                  await buildMediaEntry(
-                    album.path,
-                    await path.basename(mediaPath),
-                  ),
+                  await buildMediaEntry(album.path, path.basename(mediaPath)),
                 );
               }
             }
@@ -139,13 +135,11 @@ export function useMedia(
             if (entry.kind !== "rename") return;
             for (const mediaPath of event.paths) {
               if (
-                (await path.normalize(mediaPath)) !==
-                (await path.normalize(
-                  await path.join(album.path, await path.basename(mediaPath)),
-                ))
+                path.normalize(mediaPath) !==
+                path.normalize(path.join(album.path, path.basename(mediaPath)))
               )
                 return;
-              const filename = await path.basename(mediaPath);
+              const filename = path.basename(mediaPath);
               if (!(await exists(mediaPath))) {
                 if (urlCache.current.has(filename)) {
                   urlCache.current.delete(filename);
@@ -153,10 +147,7 @@ export function useMedia(
                 setAll((p) => p.filter((i) => i.name !== filename));
               } else {
                 addEntry(
-                  await buildMediaEntry(
-                    album.path,
-                    await path.basename(mediaPath),
-                  ),
+                  await buildMediaEntry(album.path, path.basename(mediaPath)),
                 );
               }
             }
@@ -165,13 +156,11 @@ export function useMedia(
             if (entry.kind !== "file") return;
             for (const mediaPath of event.paths) {
               if (
-                (await path.normalize(mediaPath)) !==
-                (await path.normalize(
-                  await path.join(album.path, await path.basename(mediaPath)),
-                ))
+                path.normalize(mediaPath) !==
+                path.normalize(path.join(album.path, path.basename(mediaPath)))
               )
                 return;
-              const filename = await path.basename(mediaPath);
+              const filename = path.basename(mediaPath);
               if (urlCache.current.has(filename)) {
                 urlCache.current.delete(filename);
               }

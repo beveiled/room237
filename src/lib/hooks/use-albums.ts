@@ -1,6 +1,6 @@
 "use client";
 
-import type { Album, DetachedAlbum } from "@/lib/types";
+import type { Album } from "@/lib/types/album";
 import { watchImmediate } from "@tauri-apps/plugin-fs";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -8,12 +8,11 @@ import {
   createAlbum as _create,
   deleteAlbum as _delete,
   listAlbums,
-  loadAlbum,
 } from "../fs/albumService";
 import { getStore } from "../fs/state";
 
 export function useAlbums(rootDir: string | null) {
-  const [albums, setAlbums] = useState<(Album | DetachedAlbum)[]>([]);
+  const [albums, setAlbums] = useState<Album[]>([]);
   const [active, setActiveInternal] = useState<string>("");
   const [albumsReady, setAlbumsReady] = useState<boolean>(false);
   const [loadingAlbum, setLoadingAlbum] = useState<string | null>(null);
@@ -25,12 +24,9 @@ export function useAlbums(rootDir: string | null) {
         setActiveInternal("");
         return;
       }
-      if (!("medias" in album)) {
+      if (!album.isLoaded) {
         setLoadingAlbum(album.name);
-        const loadedAlbum = await loadAlbum(album);
-        setAlbums((prev) =>
-          prev.map((a) => (a.name === name ? loadedAlbum : a)),
-        );
+        await album.load();
         setLoadingAlbum(null);
       }
       setActiveInternal(name);
@@ -78,33 +74,19 @@ export function useAlbums(rootDir: string | null) {
     if (!rootDir) return;
     const a = await listAlbums(rootDir);
     setAlbums((prev) => {
-      const newAlbums = a.filter((n) => !prev.some((p) => p.name === n.name));
-      const updatedAlbums = prev
-        .filter((p) => a.some((n) => n.name === p.name))
-        .map((p) => {
-          const newAlbum = a.find((n) => n.name === p.name);
-          if (!newAlbum) return p;
-
-          if ("medias" in p && "medias" in newAlbum) {
-            if (p.medias.length !== newAlbum.medias.length) {
-              return newAlbum;
-            }
-          } else if ("medias" in p && !("medias" in newAlbum)) {
-            if (p.medias.length !== newAlbum.files) {
-              return newAlbum;
-            }
-          } else if (!("medias" in p) && "medias" in newAlbum) {
-            return newAlbum;
-          } else if (!("medias" in p) && !("medias" in newAlbum)) {
-            if (p.files !== newAlbum.files) {
-              return newAlbum;
-            }
+      const newAlbums = a.filter((a) => !prev.some((p) => p.name === a.name));
+      return [
+        ...prev.filter((p) => a.some((n) => n.name === p.name)),
+        ...newAlbums,
+      ]
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((album) => {
+          const newAlb = a.find((n) => n.name === album.name);
+          if (newAlb && album.size !== newAlb.size) {
+            album.size = newAlb.size;
           }
-
-          return p;
+          return album;
         });
-
-      return [...updatedAlbums, ...newAlbums];
     });
   }, [rootDir]);
 
@@ -120,8 +102,7 @@ export function useAlbums(rootDir: string | null) {
     if (!rootDir) return;
     await _delete(album);
   };
-  const activeAlbum = (albums.find((a) => a.name === active) ??
-    null) as Album | null;
+  const activeAlbum = albums.find((a) => a.name === active) ?? null;
 
   useEffect(() => {
     if (!rootDir) return;

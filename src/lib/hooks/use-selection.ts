@@ -11,9 +11,6 @@ export function useSelection() {
       if (additive) {
         if (n.has(media)) n.delete(media);
         else n.add(media);
-      } else {
-        n.clear();
-        n.add(media);
       }
       return n;
     });

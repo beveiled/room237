@@ -15,15 +15,9 @@ export interface MediaEntry {
   name: string;
 }
 
-export interface DetachedAlbum {
-  path: string;
+export interface DetactedMediaEntry {
+  meta: string;
   name: string;
-  thumb: string | null;
-  files: number;
-}
-
-export interface Album extends Omit<DetachedAlbum, "files"> {
-  medias: MediaEntry[];
 }
 
 export type LayoutType = "default" | "masonry" | "apple";
