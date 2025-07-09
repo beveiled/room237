@@ -9,7 +9,6 @@
 
 - **Lockscreen**: Need to leave your laptop for a second? Lock your gallery with a single click
 - **Layouts**: Use classic grid, fancy masonry or Apple-Photos-like layout
-- **Cropping**: Try clicking on any image
 - **Lightweight**: Built with Tauri, not Electron
 - **Feels native**: Select multiple photos to drag around, move them between albums, use hotkeys
 - **Open Source**: Free and open source, GNU Affero General Public License v3.0
