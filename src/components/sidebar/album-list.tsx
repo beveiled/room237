@@ -4,6 +4,7 @@ import { AlbumItem } from "@/components/album-item";
 import { NewAlbumButton } from "@/components/sidebar/new-album-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useGallery } from "@/lib/context/gallery-context";
+import { Settings } from "../settings";
 import { Button } from "../ui/button";
 import { ResizablePanel } from "../ui/resizable";
 
@@ -16,8 +17,11 @@ export default function AlbumList() {
     rootDir,
     pickDirectory,
     loadingAlbum,
+    decoy,
   } = useGallery();
+
   if (!rootDir) return null;
+
   return (
     <ResizablePanel
       defaultSize={20}
@@ -52,14 +56,19 @@ export default function AlbumList() {
             ))}
             <NewAlbumButton />
           </ScrollArea>
-          <Button
-            variant="outline"
-            className="rounded-xl"
-            onClick={() => pickDirectory()}
-            size="sm"
-          >
-            Change root
-          </Button>
+          {!decoy.displayDecoy && (
+            <div className="flex justify-between">
+              <Button
+                variant="outline"
+                className="rounded-xl"
+                onClick={() => pickDirectory()}
+                size="sm"
+              >
+                Change root
+              </Button>
+              <Settings />
+            </div>
+          )}
         </div>
       </div>
     </ResizablePanel>

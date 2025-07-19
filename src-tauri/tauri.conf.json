@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "room237",
-  "version": "0.5.0",
-  "identifier": "dev.dgazizullin.room237",
+  "version": "0.6.0",
+  "identifier": "dev.beveiled.room237",
   "build": {
     "frontendDist": "../out",
     "devUrl": "http://localhost:3000",
@@ -63,6 +63,15 @@
     "asset": {
       "requireLiteralLeadingDot": false,
       "requireLiteralSeparator": false
+    },
+    "updater": {
+      "windows": {
+        "installMode": "passive"
+      },
+      "endpoints": [
+        "https://github.com/beveiled/room237/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDlCMjY5RTM4REIxNUI0QTkKUldTcHRCWGJPSjRtbTdJMzdkOE9FWjZRcytJL3ExUFpRUCtKNmQ3NVpVRW1hNktmbXI3MzJucFUK"
     }
   }
 }

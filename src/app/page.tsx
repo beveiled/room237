@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/resizable";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Toaster } from "@/components/ui/sonner";
+import { Updater } from "@/components/updater";
 import { GalleryProvider } from "@/lib/context/gallery-provider";
 import { attachConsole } from "@tauri-apps/plugin-log";
 import { useEffect } from "react";
@@ -43,6 +44,7 @@ export default function GalleryPage() {
       <Toaster />
       <SelectionMenu />
       <DirectoryPicker />
+      <Updater />
     </GalleryProvider>
   );
 }

@@ -7,11 +7,14 @@
 
 ## Features
 
-- **Lockscreen**: Need to leave your laptop for a second? Lock your gallery with a single click
+- **Lockscreen**: Need to leave your laptop for a second? Lock your gallery with a single click of "L" and unlock with "U"
 - **Layouts**: Use classic grid, fancy masonry or Apple-Photos-like layout
 - **Lightweight**: Built with Tauri, not Electron
 - **Feels native**: Select multiple photos to drag around, move them between albums, use hotkeys
 - **Open Source**: Free and open source, GNU Affero General Public License v3.0
+- **Auto-Lock**: Automatically locks the gallery after a period of inactivity
+- **Decoy Gallery**: Left-click the "Open" button or unlock with Meta+U to show a decoy gallery if you are under pressure from someone
+- **Alt+Tab Privacy**: No photos visible when you alt-tab away from the app
 
 ## Usage recommendations
 

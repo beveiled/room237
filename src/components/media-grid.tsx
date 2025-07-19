@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import { useGallery } from "@/lib/context/gallery-context";
-import { masonry } from "@/lib/utils";
 import { MediaItem } from "@/components/media-item";
+import { useGallery } from "@/lib/context/gallery-context";
+import { cn, masonry } from "@/lib/utils";
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const MAX_COLS = 12;
 
@@ -22,7 +23,11 @@ export default function MediaGrid() {
     loadingAlbum,
     isFullyLoaded,
     locked,
+    activeAlbum,
+    albums,
   } = useGallery();
+
+  const [isUnfocused, setIsUnfocused] = useState(false);
 
   const cols = useMemo(() => masonry(media, columns), [media, columns]);
   const sent = useRef<HTMLDivElement[]>([]);
@@ -60,6 +65,28 @@ export default function MediaGrid() {
       document.removeEventListener("paste", handlePaste);
     };
   }, [uploadFilesToActive]);
+
+  useEffect(() => {
+    const window = getCurrentWindow();
+    const unlistenBlur = window.listen("tauri://blur", () => {
+      setIsUnfocused(true);
+    });
+    const unlistenFocus = window.listen("tauri://focus", () => {
+      setIsUnfocused(false);
+    });
+    return () => {
+      void unlistenBlur.then((f) => f());
+      void unlistenFocus.then((f) => f());
+    };
+  });
+
+  if (!activeAlbum && albums.length > 0) {
+    return (
+      <div className="flex h-[90vh] items-center justify-center">
+        <div className="text-muted-foreground">Select an album to view</div>
+      </div>
+    );
+  }
 
   if (loadingAlbum) {
     if (layout === "default")
@@ -143,7 +170,10 @@ export default function MediaGrid() {
   if (layout === "default")
     return (
       <div
-        className="grid p-1 transition-all duration-200 ease-in-out"
+        className={cn(
+          "grid p-1 transition-all duration-200 ease-in-out",
+          isUnfocused && "overflow-hidden opacity-20 blur-xl",
+        )}
         style={{
           gridTemplateColumns: `repeat(${columns}, 1fr)`,
           gap: `${(1 - columns / MAX_COLS) * 0.5 + 0.5}rem`,
@@ -203,7 +233,10 @@ export default function MediaGrid() {
   if (layout === "masonry")
     return (
       <div
-        className="grid gap-2 p-1 transition-all duration-200 ease-in-out"
+        className={cn(
+          "grid gap-2 p-1 transition-all duration-200 ease-in-out",
+          isUnfocused && "overflow-hidden opacity-20 blur-xl",
+        )}
         style={{ gridTemplateColumns: `repeat(${cols.length}, 1fr)` }}
         onDragOver={over}
         onDrop={drop}
@@ -255,7 +288,10 @@ export default function MediaGrid() {
   if (layout === "apple")
     return (
       <div
-        className="grid gap-4 p-1 transition-all duration-200 ease-in-out"
+        className={cn(
+          "grid gap-4 p-1 transition-all duration-200 ease-in-out",
+          isUnfocused && "overflow-hidden opacity-20 blur-xl",
+        )}
         style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
         onDragOver={over}
         onDrop={drop}

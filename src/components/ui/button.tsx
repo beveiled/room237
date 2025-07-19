@@ -58,9 +58,9 @@ function Button({
     <motion.button
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
-      whileHover={{ scale: 1.01, y: -1 }}
-      whileTap={{ scale: 0.98, y: 0 }}
-      transition={{ type: "spring", stiffness: 600, damping: 30 }}
+      whileHover={{ scale: 1.06 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ type: "spring", stiffness: 600, damping: 28 }}
       {...(props as Omit<HTMLMotionProps<"button">, "ref">)}
     >
       {props.children}

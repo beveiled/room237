@@ -54,6 +54,16 @@ type Ctx = {
   loadingAlbum: string | null;
   allowOpen: boolean;
   setAllowOpen: (allow: boolean) => void;
+  isDebug: boolean;
+  isLogger: boolean;
+  setIsLogger: (open: boolean) => void;
+  decoy: {
+    decoyRoot: string | null;
+    setDecoyRoot: (root: string | null) => Promise<void>;
+    displayDecoy: boolean;
+    setDisplayDecoy: (display: boolean) => void;
+  };
+  setRoot: (dir: string) => void;
 };
 
 export const GalleryContext = createContext<Ctx>(null as unknown as Ctx);
