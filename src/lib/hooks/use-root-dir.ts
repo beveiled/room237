@@ -39,5 +39,5 @@ export function useRootDir() {
     await store.set("rootDir", dir);
   };
 
-  return { rootDir: root, pickDirectory, allowOpen, setAllowOpen };
+  return { rootDir: root, pickDirectory, allowOpen, setAllowOpen, setRoot };
 }

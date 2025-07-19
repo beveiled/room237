@@ -4,8 +4,10 @@ import { Player } from "@lottiefiles/react-lottie-player";
 import path from "path";
 
 export default function ConfirmOpen() {
-  const { rootDir, setAllowOpen, pickDirectory } = useGallery();
+  const { rootDir, setAllowOpen, pickDirectory, decoy, setRoot } = useGallery();
+
   if (!rootDir) return null;
+
   return (
     <>
       <div className="h-8 w-full" data-tauri-drag-region></div>
@@ -19,10 +21,25 @@ export default function ConfirmOpen() {
         />
         <div className="my-2 text-xl font-semibold">We found your library</div>
         <div className="text-muted-foreground mb-4 max-w-11/12 text-sm">
-          Just making sure you want to open <b>{path.basename(rootDir)}</b>
+          Just making sure you want to open <b>{path.basename(rootDir)}</b>. It
+          might contain sensitive media files.
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setAllowOpen(true)}>Open</Button>
+          <Button
+            onClick={() => {
+              if (decoy.decoyRoot) {
+                setRoot(decoy.decoyRoot);
+                decoy.setDisplayDecoy(true);
+              }
+              setAllowOpen(true);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setAllowOpen(true);
+            }}
+          >
+            Open
+          </Button>
           <Button onClick={pickDirectory} variant="outline">
             Pick another root
           </Button>

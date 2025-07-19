@@ -59,19 +59,6 @@ export function useAlbums(rootDir: string | null) {
     void showPreloadingToast();
   }, [rootDir]);
 
-  useEffect(() => {
-    if (!albums || !rootDir || active) return;
-    void (async () => {
-      const store = await getStore();
-      const savedActive = (await store.get("activeAlbum")) as string | null;
-      if (savedActive && albums.some((a) => a.name === savedActive)) {
-        void setActive(savedActive);
-      } else if (albums.length > 0) {
-        void setActive(albums[0]!.name);
-      }
-    })();
-  }, [albums, rootDir, active, setActive]);
-
   const hotRefresh = useCallback(async () => {
     if (!rootDir) return;
     const a = await listAlbums(rootDir);

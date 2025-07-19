@@ -16,9 +16,12 @@ import type { Album } from "@/lib/types/album";
 import { useLockscreen } from "../hooks/use-lockscreen";
 import { remove } from "@tauri-apps/plugin-fs";
 import { getStore } from "@/lib/fs/state";
+import { useDebugger } from "../hooks/use-debugger";
+import { useDecoy } from "../hooks/use-decoy";
 
 export function GalleryProvider({ children }: { children: ReactNode }) {
-  const { rootDir, pickDirectory, allowOpen, setAllowOpen } = useRootDir();
+  const { rootDir, pickDirectory, allowOpen, setAllowOpen, setRoot } =
+    useRootDir();
   const albumsState = useAlbums(rootDir);
 
   const [columns, setColumnsInternal] = useState(4);
@@ -30,6 +33,8 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
   const drag = useDragDrop(sel.selection);
   const viewer = useViewer(photosState.media.length);
   const lock = useLockscreen();
+  const debug = useDebugger();
+  const decoy = useDecoy();
   const upload = useUpload(albumsState.activeAlbum);
 
   const setColumns = (n: number) => {
@@ -114,6 +119,14 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     selectAll: () => sel.selectAll(photosState.media),
     viewer,
     lock,
+    debug,
+    lockdown: () => {
+      if (decoy.decoyRoot) {
+        setRoot(decoy.decoyRoot);
+        decoy.setDisplayDecoy(true);
+      }
+      setAllowOpen(true);
+    },
   });
 
   const ctx = {
@@ -154,6 +167,11 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     layout: photosState.layout,
     setLayout: photosState.setLayout,
     loadingAlbum: albumsState.loadingAlbum,
+    isDebug: debug.isDebug,
+    isLogger: debug.isLogger,
+    setIsLogger: debug.setIsLogger,
+    decoy,
+    setRoot,
   };
 
   return (
