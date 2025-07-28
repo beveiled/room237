@@ -42,11 +42,15 @@ export class Album {
     return this.medias !== undefined && this.medias.length === this.size;
   }
 
-  public async load() {
-    if (this.medias !== undefined && this.medias.length === this.size) return;
-    const mediasRaw = (await invoke("get_album_media", {
+  public async getRawMedia() {
+    return (await invoke("get_album_media", {
       dir: this.path,
     })) satisfies DetactedMediaEntry[];
+  }
+
+  public async load() {
+    if (this.medias !== undefined && this.medias.length === this.size) return;
+    const mediasRaw = await this.getRawMedia();
     const medias: MediaEntry[] = [];
     for (const entry of mediasRaw) {
       medias.push({

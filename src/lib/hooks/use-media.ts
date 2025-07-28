@@ -5,7 +5,7 @@ import type { LayoutType, MediaEntry } from "@/lib/types";
 import type { Album } from "@/lib/types/album";
 import { isMedia } from "@/lib/utils";
 import path from "path";
-import { exists, watchImmediate } from "@tauri-apps/plugin-fs";
+import { exists, watch } from "@tauri-apps/plugin-fs";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { buildMediaEntry } from "../fs/albumService";
 
@@ -112,63 +112,74 @@ export function useMedia(
     if (!album) return;
     let unwatch: () => void = () => null;
     void (async () => {
-      unwatch = await watchImmediate(album.path, (event) => {
-        void (async () => {
-          if (typeof event.type === "string") return;
-          if ("create" in event.type) {
-            const entry = event.type.create;
-            if (entry.kind !== "file") return;
-            for (const mediaPath of event.paths) {
-              if (
-                path.normalize(mediaPath) !==
-                path.normalize(path.join(album.path, path.basename(mediaPath)))
-              )
-                return;
-              if (isMedia(mediaPath)) {
-                addEntry(
-                  await buildMediaEntry(album.path, path.basename(mediaPath)),
-                );
+      unwatch = await watch(
+        album.path,
+        (event) => {
+          void (async () => {
+            if (typeof event.type === "string") return;
+            if ("create" in event.type) {
+              const entry = event.type.create;
+              if (entry.kind !== "file") return;
+              for (const mediaPath of event.paths) {
+                if (
+                  path.normalize(mediaPath) !==
+                  path.normalize(
+                    path.join(album.path, path.basename(mediaPath)),
+                  )
+                )
+                  return;
+                if (isMedia(mediaPath)) {
+                  addEntry(
+                    await buildMediaEntry(album.path, path.basename(mediaPath)),
+                  );
+                }
               }
-            }
-          } else if ("modify" in event.type) {
-            const entry = event.type.modify;
-            if (entry.kind !== "rename") return;
-            for (const mediaPath of event.paths) {
-              if (
-                path.normalize(mediaPath) !==
-                path.normalize(path.join(album.path, path.basename(mediaPath)))
-              )
-                return;
-              const filename = path.basename(mediaPath);
-              if (!(await exists(mediaPath))) {
+            } else if ("modify" in event.type) {
+              const entry = event.type.modify;
+              if (entry.kind !== "rename") return;
+              for (const mediaPath of event.paths) {
+                if (
+                  path.normalize(mediaPath) !==
+                  path.normalize(
+                    path.join(album.path, path.basename(mediaPath)),
+                  )
+                )
+                  return;
+                const filename = path.basename(mediaPath);
+                if (!(await exists(mediaPath))) {
+                  if (urlCache.current.has(filename)) {
+                    urlCache.current.delete(filename);
+                  }
+                  setAll((p) => p.filter((i) => i.name !== filename));
+                } else {
+                  addEntry(
+                    await buildMediaEntry(album.path, path.basename(mediaPath)),
+                  );
+                }
+              }
+            } else if ("remove" in event.type) {
+              const entry = event.type.remove;
+              if (entry.kind !== "file") return;
+              for (const mediaPath of event.paths) {
+                if (
+                  path.normalize(mediaPath) !==
+                  path.normalize(
+                    path.join(album.path, path.basename(mediaPath)),
+                  )
+                )
+                  return;
+                const filename = path.basename(mediaPath);
                 if (urlCache.current.has(filename)) {
                   urlCache.current.delete(filename);
                 }
                 setAll((p) => p.filter((i) => i.name !== filename));
-              } else {
-                addEntry(
-                  await buildMediaEntry(album.path, path.basename(mediaPath)),
-                );
               }
             }
-          } else if ("remove" in event.type) {
-            const entry = event.type.remove;
-            if (entry.kind !== "file") return;
-            for (const mediaPath of event.paths) {
-              if (
-                path.normalize(mediaPath) !==
-                path.normalize(path.join(album.path, path.basename(mediaPath)))
-              )
-                return;
-              const filename = path.basename(mediaPath);
-              if (urlCache.current.has(filename)) {
-                urlCache.current.delete(filename);
-              }
-              setAll((p) => p.filter((i) => i.name !== filename));
-            }
-          }
-        })();
-      });
+          })();
+        },
+        // When new media is added, give some room for thumbnail + meta generation
+        { delayMs: 1000 },
+      );
     })();
     return () => {
       unwatch();

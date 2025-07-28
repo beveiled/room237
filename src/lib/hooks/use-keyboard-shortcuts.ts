@@ -34,9 +34,12 @@ export function useKeyboardShortcuts({
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
     if (!lock.locked) {
-      inactivityTimer.current = setTimeout(() => {
-        lock.lock();
-      }, 60 * 1000);
+      inactivityTimer.current = setTimeout(
+        () => {
+          lock.lock();
+        },
+        5 * 60 * 1000,
+      );
     }
   }, [lock]);
 

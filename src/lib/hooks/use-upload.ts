@@ -30,6 +30,9 @@ export function useUpload(active: Album | null) {
           { id, duration: Infinity },
         );
       }
+      toast.loading(`Processing...`, { id, duration: Infinity });
+      // Will generate missing thumbnails and metadata
+      await album.getRawMedia();
       toast.success(`Added ${list.length} file(s)`, { id, duration: 2000 });
     },
     [],
