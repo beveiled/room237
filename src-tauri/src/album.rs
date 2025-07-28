@@ -240,3 +240,27 @@ pub fn move_media(source: String, target: String, media: String) -> Result<Strin
     log::info!("move {} → {}", source_file.display(), target_file.display());
     Ok("ok".into())
 }
+
+#[tauri::command]
+pub fn register_new_media(album_path: String, media_name: String) -> Result<DetachedMediaEntry, String> {
+    let album_path = PathBuf::from(&album_path);
+    let path = album_path.join(&media_name);
+
+    if !path.is_file() {
+        return Err(format!("{} is not a file", path.display()));
+    }
+
+    let thumb_dir = album_path.join(".room237-thumb");
+    let meta_dir = album_path.join(".room237-meta");
+
+    fs::create_dir_all(&thumb_dir).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
+    ensure_thumb(&path, &thumb_dir)?;
+    let meta = get_file_metadata_cached(&path, &meta_dir)?;
+    let entry = DetachedMediaEntry {
+        meta,
+        name: path.file_name().unwrap().to_string_lossy().into_owned(),
+    };
+    log::info!("registered new media {}", path.display());
+    Ok(entry)
+}

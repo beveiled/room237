@@ -1,6 +1,9 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { FileMeta, MediaEntry } from "./types";
+import { convertFileSrc } from "@tauri-apps/api/core";
+import path from "path";
+import { type DetachedMediaEntry } from "./types";
 
 export const cn = (...i: ClassValue[]) => twMerge(clsx(i));
 
@@ -184,4 +187,19 @@ export function unpackFileMeta(packed: string): FileMeta {
     width: hasW ? width : undefined,
     height: hasH ? height : undefined,
   };
+}
+
+export function attachMediaEntry(
+  albumPath: string,
+  entry: DetachedMediaEntry,
+): MediaEntry {
+  return {
+    url: convertFileSrc(path.join(albumPath, entry.name)),
+    thumb: convertFileSrc(
+      path.join(albumPath, ".room237-thumb", `${entry.name}.webp`),
+    ),
+    meta: unpackFileMeta(entry.meta),
+    name: entry.name,
+    path: path.join(albumPath, entry.name),
+  } satisfies MediaEntry;
 }

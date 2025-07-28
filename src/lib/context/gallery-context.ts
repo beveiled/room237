@@ -19,7 +19,6 @@ type Ctx = {
   media: MediaEntry[];
   loadMore: () => void;
   isFullyLoaded: boolean;
-  invalidateMedia: (name: string) => Promise<void>;
   columns: number;
   setColumns: (n: number) => void;
   sortKey: SortKey;

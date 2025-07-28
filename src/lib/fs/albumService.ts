@@ -1,34 +1,23 @@
 import type { MediaEntry } from "@/lib/types";
-import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import { invoke } from "@tauri-apps/api/core";
 import path from "path";
 import { exists, mkdir, remove } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
 import { buildAlbum, type Album, type DetachedAlbum } from "../types/album";
-import { unpackFileMeta } from "../utils";
+import { type DetachedMediaEntry } from "../types";
+import { attachMediaEntry } from "../utils";
 
 const albumCache = new Map<string, Album>();
 
-export async function buildMediaEntry(
+export async function registerNewMedia(
   dir: string,
   file: string,
-  revalidate = false,
 ): Promise<MediaEntry> {
-  const mediaPath = path.join(dir, file);
-  const thumbPath = path.join(
-    dir,
-    ".room237-thumb",
-    file.replace(/\.[^.]+$/, ".webp"),
-  );
-
-  return {
-    url: convertFileSrc(mediaPath) + (revalidate ? `?t=${Date.now()}` : ""),
-    thumb: convertFileSrc(thumbPath) + (revalidate ? `?t=${Date.now()}` : ""),
-    meta: unpackFileMeta(
-      await invoke("get_file_metadata", { path: mediaPath }),
-    ),
-    path: mediaPath,
-    name: file,
-  };
+  const dMediaEntry = (await invoke("register_new_media", {
+    albumPath: dir,
+    mediaName: file,
+  })) satisfies DetachedMediaEntry;
+  return attachMediaEntry(dir, dMediaEntry);
 }
 
 export async function listAlbums(rootDir: string): Promise<Album[]> {

@@ -143,7 +143,6 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     media: photosState.media,
     loadMore: photosState.loadMore,
     isFullyLoaded: photosState.isFullyLoaded,
-    invalidateMedia: photosState.invalidateMedia,
     columns,
     setColumns,
     sortKey,

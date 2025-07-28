@@ -1,7 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import type { DetactedMediaEntry, MediaEntry } from ".";
-import path from "path";
-import { unpackFileMeta } from "../utils";
+import type { DetachedMediaEntry, MediaEntry } from ".";
+import { attachMediaEntry } from "../utils";
 
 export interface DetachedAlbum {
   path: string;
@@ -45,26 +44,14 @@ export class Album {
   public async getRawMedia() {
     return (await invoke("get_album_media", {
       dir: this.path,
-    })) satisfies DetactedMediaEntry[];
+    })) satisfies DetachedMediaEntry[];
   }
 
   public async load() {
     if (this.medias !== undefined && this.medias.length === this.size) return;
     const mediasRaw = await this.getRawMedia();
-    const medias: MediaEntry[] = [];
-    for (const entry of mediasRaw) {
-      medias.push({
-        url: convertFileSrc(path.join(this.path, entry.name)),
-        thumb: convertFileSrc(
-          path.join(this.path, ".room237-thumb", `${entry.name}.webp`),
-        ),
-        meta: unpackFileMeta(entry.meta),
-        name: entry.name,
-        path: path.join(this.path, entry.name),
-      } satisfies MediaEntry);
-    }
-    this.medias = medias;
-    this.size = medias.length;
+    this.medias = mediasRaw.map((entry) => attachMediaEntry(this.path, entry));
+    this.size = this.medias.length;
   }
 
   public async update(size: number, active: boolean) {

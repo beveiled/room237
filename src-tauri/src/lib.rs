@@ -8,7 +8,7 @@ mod preload;
 mod thumb;
 mod util;
 
-pub use album::{get_album_media, get_album_size, get_albums_detached, move_media};
+pub use album::{get_album_media, get_album_size, get_albums_detached, move_media, register_new_media};
 pub use debugging::{rebuild_metadata, rebuild_thumbnails};
 pub use metadata::get_file_metadata;
 pub use preload::{is_preloading, lock_until_preloaded};
@@ -28,6 +28,7 @@ pub fn run() {
             lock_until_preloaded,
             rebuild_thumbnails,
             rebuild_metadata,
+            register_new_media,
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

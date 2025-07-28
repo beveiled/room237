@@ -15,7 +15,7 @@ export interface MediaEntry {
   name: string;
 }
 
-export interface DetactedMediaEntry {
+export interface DetachedMediaEntry {
   meta: string;
   name: string;
 }
