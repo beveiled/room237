@@ -7,7 +7,7 @@ import MediaViewer from "@/components/media-viewer";
 import { SelectionMenu } from "@/components/selection-menu";
 import AlbumList from "@/components/sidebar/album-list";
 import DirectoryPicker from "@/components/sidebar/directory-picker";
-import MediaGridHeader from "@/components/ui/media-grid-header";
+import MediaGridHeader from "@/components/media-grid-header";
 import {
   ResizableHandle,
   ResizablePanel,

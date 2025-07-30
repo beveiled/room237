@@ -31,6 +31,7 @@ export function useMedia(
   batch: number,
   sortKey: SortKey,
   sortDir: SortDir,
+  showDuplicates: boolean,
 ) {
   const [all, setAll] = useState<MediaEntry[]>([]);
   const [visibleCount, setVisibleCount] = useState<number>(30);
@@ -71,23 +72,53 @@ export function useMedia(
     void loadInitial();
   }, [loadInitial]);
 
-  const loadMore = () =>
+  const loadMore = () => {
+    if (showDuplicates) return;
     setVisibleCount((p) => {
       const newCount = p + batch;
       if (newCount >= all.length) return all.length;
       return newCount;
     });
+  };
 
   const isFullyLoaded = useMemo(() => {
-    return all && visibleCount >= all.length;
-  }, [visibleCount, all]);
+    return (all && visibleCount >= all.length) || showDuplicates;
+  }, [visibleCount, all, showDuplicates]);
 
   const sorted = useMemo(() => {
-    const arr = [...all];
+    let arr = [...all];
+    if (showDuplicates) {
+      const grouped = new Map<string, MediaEntry[]>();
+      for (const item of arr) {
+        if (item.duplicates && item.duplicates.length > 0) {
+          item.duplicates.forEach((dup) => {
+            if (!grouped.has(dup)) {
+              grouped.set(dup, []);
+            }
+            grouped.get(dup)?.push(item);
+          });
+        }
+      }
+
+      arr = Array.from(grouped.entries())
+        .map(([duplicateName, items]) => {
+          const originalItem = all.find((item) => item.name === duplicateName);
+          if (!originalItem) {
+            return null;
+          }
+          const duplicates = items.map((item) => item.name);
+          return {
+            ...originalItem,
+            duplicates: duplicates,
+          };
+        })
+        .filter((entry) => entry !== null) as MediaEntry[];
+      return arr;
+    }
     arr.sort((a, b) => cmp(a, b, sortKey));
     if (sortDir === "desc") arr.reverse();
     return arr.slice(0, visibleCount);
-  }, [visibleCount, all, sortKey, sortDir]);
+  }, [visibleCount, all, sortKey, sortDir, showDuplicates]);
 
   const addEntry = (e: MediaEntry) =>
     setAll((p) => (p.some((i) => i.name === e.name) ? p : [e, ...p]));

@@ -29,6 +29,7 @@ interface Props {
   imgClassName?: string;
   showExtras?: boolean;
   style?: React.CSSProperties;
+  showDuplicates: boolean;
 }
 
 export const MediaItem: React.FC<Props> = ({
@@ -43,6 +44,7 @@ export const MediaItem: React.FC<Props> = ({
   imgClassName,
   showExtras = true,
   style,
+  showDuplicates,
 }) => {
   const [confirm, setConfirm] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -106,10 +108,11 @@ export const MediaItem: React.FC<Props> = ({
       whileTap={{ scale: 0.98 }}
       transition={{ type: "spring", stiffness: 600, damping: 25 }}
       className={cn(
-        "group border-border/50 relative mb-2 break-inside-avoid overflow-hidden rounded-md border text-xs shadow-sm select-none",
+        "group border-border/50 relative mb-2 break-inside-avoid overflow-hidden rounded-md border text-xs shadow-sm transition-shadow duration-200 select-none",
         className,
         selected && "ring-3 ring-blue-700",
         locked && "blur-lg",
+        showDuplicates && "shadow-[0_0_5px_0_var(--color-green-400)]",
       )}
       draggable
       onDragStart={(e) => onDragStart(e, item)}
@@ -119,14 +122,21 @@ export const MediaItem: React.FC<Props> = ({
         className="absolute top-0 right-0 bottom-0 left-0 z-10 m-auto h-full w-full cursor-pointer"
         onClick={click}
       />
-      <div className="text-foreground pointer-events-none absolute top-2 left-2 rounded-md bg-black/70 px-2 py-0.5 opacity-0 backdrop-blur-lg transition-all duration-150 group-hover:opacity-100">
-        {dateTimestamp
-          ? new Date(dateTimestamp).toLocaleDateString("en-US", {
-              year: "numeric",
-              month: "short",
-              day: "2-digit",
-            })
-          : "Unknown Date"}
+      <div className="pointer-events-none absolute top-2 left-2 flex flex-col gap-1">
+        <div className="text-foreground rounded-md bg-black/70 px-2 py-0.5 opacity-0 backdrop-blur-lg transition-all duration-150 group-hover:opacity-100">
+          {dateTimestamp
+            ? new Date(dateTimestamp).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "short",
+                day: "2-digit",
+              })
+            : "Unknown Date"}
+        </div>
+        {showDuplicates && (
+          <div className="text-foreground rounded-md bg-black/70 px-2 py-0.5 opacity-0 backdrop-blur-lg transition-all duration-150 group-hover:opacity-100">
+            {item.name}
+          </div>
+        )}
       </div>
 
       {isVideo(item.name) ? (

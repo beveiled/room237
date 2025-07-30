@@ -63,6 +63,8 @@ type Ctx = {
     setDisplayDecoy: (display: boolean) => void;
   };
   setRoot: (dir: string) => void;
+  showDuplicates: boolean;
+  setShowDuplicates: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
 export const GalleryContext = createContext<Ctx>(null as unknown as Ctx);

@@ -62,6 +62,32 @@ export class Album {
     if (this.medias !== undefined && this.medias.length === size) return;
     await this.load();
   }
+
+  public async loadDuplicates(): Promise<void> {
+    if (
+      this.medias?.some(
+        (media) => media.duplicates && media.duplicates.length > 0,
+      )
+    )
+      return;
+    const duplicates: string[][] = await invoke("find_duplicates", {
+      dir: this.path,
+    });
+    if (!this.medias) {
+      await this.load();
+      if (!this.medias) {
+        return;
+      }
+    }
+    for (const group of duplicates) {
+      group.forEach((name: string) => {
+        const entry = this.medias?.find((media) => media.name === name);
+        if (entry) {
+          entry.duplicates = group.filter((n) => n !== name);
+        }
+      });
+    }
+  }
 }
 
 const albumsCache = new Map<string, Album>();

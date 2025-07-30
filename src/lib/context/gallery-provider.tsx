@@ -27,8 +27,15 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
   const [columns, setColumnsInternal] = useState(4);
   const [sortKey, setSortKeyInternal] = useState<SortKey>("shoot");
   const [sortDir, setSortDirInternal] = useState<SortDir>("desc");
+  const [showDuplicates, setShowDuplicates] = useState(false);
 
-  const photosState = useMedia(albumsState.activeAlbum, 40, sortKey, sortDir);
+  const photosState = useMedia(
+    albumsState.activeAlbum,
+    40,
+    sortKey,
+    sortDir,
+    showDuplicates,
+  );
   const sel = useSelection();
   const drag = useDragDrop(sel.selection);
   const viewer = useViewer(photosState.media.length);
@@ -171,6 +178,8 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     setIsLogger: debug.setIsLogger,
     decoy,
     setRoot,
+    showDuplicates,
+    setShowDuplicates,
   };
 
   return (

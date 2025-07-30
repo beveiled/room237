@@ -25,6 +25,7 @@ export default function MediaGrid() {
     locked,
     activeAlbum,
     albums,
+    showDuplicates,
   } = useGallery();
 
   const [isUnfocused, setIsUnfocused] = useState(false);
@@ -194,6 +195,7 @@ export default function MediaGrid() {
             className="m-0 aspect-square w-full object-cover"
             imgClassName="w-full object-cover aspect-square"
             showExtras={columns < 10}
+            showDuplicates={showDuplicates}
             style={{
               borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
               fontSize: `${(1 - columns / MAX_COLS) * 4 + 8}px`,
@@ -261,6 +263,7 @@ export default function MediaGrid() {
                 onRequestDelete={deleteMedia}
                 locked={locked}
                 showExtras={columns < 8}
+                showDuplicates={showDuplicates}
               />
             ))}
             <div
@@ -307,6 +310,7 @@ export default function MediaGrid() {
               onRequestDelete={deleteMedia}
               locked={locked}
               showExtras={columns < 8}
+              showDuplicates={showDuplicates}
             />
           </div>
         ))}
