@@ -20,20 +20,6 @@ export const loadImageDims = (f: File) =>
     i.src = URL.createObjectURL(f);
   });
 
-export function masonry(medias: MediaEntry[], columns: number): MediaEntry[][] {
-  const cols: { h: number; imgs: MediaEntry[] }[] = Array.from(
-    { length: columns },
-    () => ({ h: 0, imgs: [] }),
-  );
-  for (const media of medias) {
-    const t = cols.reduce((a, b) => (a.h <= b.h ? a : b));
-    const r = (media.meta.height ?? 1) / (media.meta.width ?? 1);
-    t.imgs.push(media);
-    t.h += r;
-  }
-  return cols.map((c) => c.imgs);
-}
-
 export function createStackPreview(medias: MediaEntry[]): HTMLDivElement {
   const c = document.createElement("div");
   c.style.position = "relative";

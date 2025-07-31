@@ -4,8 +4,8 @@ import { getStore } from "@/lib/fs/state";
 import type { LayoutType, MediaEntry } from "@/lib/types";
 import type { Album } from "@/lib/types/album";
 import { isMedia } from "@/lib/utils";
-import path from "path";
 import { exists, watchImmediate } from "@tauri-apps/plugin-fs";
+import path from "path";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { registerNewMedia } from "../fs/albumService";
 
@@ -28,13 +28,11 @@ const cmp = (a: MediaEntry, b: MediaEntry, key: SortKey): number => {
 
 export function useMedia(
   album: Album | null,
-  batch: number,
   sortKey: SortKey,
   sortDir: SortDir,
   showDuplicates: boolean,
 ) {
   const [all, setAll] = useState<MediaEntry[]>([]);
-  const [visibleCount, setVisibleCount] = useState<number>(30);
   const [layout, setLayoutInternal] = useState<LayoutType>("default");
   const urlCache = useRef(new Map<string, string>());
 
@@ -60,65 +58,62 @@ export function useMedia(
   const loadInitial = useCallback(async () => {
     if (!album) {
       setAll([]);
-      setVisibleCount(30);
       return;
     }
     if (!album.medias) return;
     setAll(album.medias);
-    setVisibleCount(Math.min(album.medias.length, batch));
-  }, [album, batch]);
+  }, [album]);
 
   useEffect(() => {
     void loadInitial();
   }, [loadInitial]);
 
-  const loadMore = () => {
-    if (showDuplicates) return;
-    setVisibleCount((p) => {
-      const newCount = p + batch;
-      if (newCount >= all.length) return all.length;
-      return newCount;
-    });
-  };
-
-  const isFullyLoaded = useMemo(() => {
-    return (all && visibleCount >= all.length) || showDuplicates;
-  }, [visibleCount, all, showDuplicates]);
-
   const sorted = useMemo(() => {
     let arr = [...all];
     if (showDuplicates) {
-      const grouped = new Map<string, MediaEntry[]>();
+      const groups = new Map<string, Set<string>>();
+      const processed = new Set<string>();
+
       for (const item of arr) {
-        if (item.duplicates && item.duplicates.length > 0) {
-          item.duplicates.forEach((dup) => {
-            if (!grouped.has(dup)) {
-              grouped.set(dup, []);
-            }
-            grouped.get(dup)?.push(item);
-          });
+        if (
+          item.duplicates &&
+          item.duplicates.length > 0 &&
+          !processed.has(item.name)
+        ) {
+          const group = new Set([item.name, ...item.duplicates]);
+          const groupKey = item.name;
+          groups.set(groupKey, group);
+
+          for (const member of group) {
+            processed.add(member);
+          }
         }
       }
 
-      arr = Array.from(grouped.entries())
-        .map(([duplicateName, items]) => {
-          const originalItem = all.find((item) => item.name === duplicateName);
-          if (!originalItem) {
-            return null;
+      arr = [];
+      for (const [, group] of groups) {
+        if (group.size > 1) {
+          for (const itemName of group) {
+            const item = all.find((entry) => entry.name === itemName);
+            if (item) {
+              const duplicates = Array.from(group).filter(
+                (name) => name !== itemName,
+              );
+              arr.push({
+                ...item,
+                duplicates,
+              });
+            }
           }
-          const duplicates = items.map((item) => item.name);
-          return {
-            ...originalItem,
-            duplicates: duplicates,
-          };
-        })
-        .filter((entry) => entry !== null) as MediaEntry[];
+        }
+      }
+
       return arr;
     }
     arr.sort((a, b) => cmp(a, b, sortKey));
     if (sortDir === "desc") arr.reverse();
-    return arr.slice(0, visibleCount);
-  }, [visibleCount, all, sortKey, sortDir, showDuplicates]);
+    return arr;
+  }, [all, sortKey, sortDir, showDuplicates]);
 
   const addEntry = (e: MediaEntry) =>
     setAll((p) => (p.some((i) => i.name === e.name) ? p : [e, ...p]));
@@ -196,11 +191,9 @@ export function useMedia(
 
   return {
     media: sorted,
-    loadMore,
     addEntry,
     removeEntry,
     layout,
     setLayout,
-    isFullyLoaded,
   };
 }

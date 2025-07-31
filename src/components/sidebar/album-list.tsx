@@ -18,6 +18,7 @@ export default function AlbumList() {
     pickDirectory,
     loadingAlbum,
     decoy,
+    setShowDuplicates,
   } = useGallery();
 
   if (!rootDir) return null;
@@ -51,7 +52,10 @@ export default function AlbumList() {
                 album={a}
                 active={a.name === activeAlbum?.name}
                 loading={a.name === loadingAlbum}
-                onClick={() => setActive(a.name)}
+                onClick={() => {
+                  setActive(a.name);
+                  setShowDuplicates(false);
+                }}
               />
             ))}
             <NewAlbumButton />

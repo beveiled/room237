@@ -67,7 +67,7 @@ export default function MediaViewer() {
           animate={anim}
           onAnimationComplete={() => isClosing && close()}
           exit={{ scale: 0.9, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 600, damping: 40 }}
+          transition={{ type: "spring", stiffness: 1200, damping: 50 }}
           className="relative flex max-h-[90vh] max-w-[90vw]"
           onClick={(e) => e.stopPropagation()}
         >

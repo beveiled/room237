@@ -17,8 +17,6 @@ type Ctx = {
   createAlbum: (n: string) => Promise<void>;
   deleteAlbum: (a: Album) => Promise<void>;
   media: MediaEntry[];
-  loadMore: () => void;
-  isFullyLoaded: boolean;
   columns: number;
   setColumns: (n: number) => void;
   sortKey: SortKey;

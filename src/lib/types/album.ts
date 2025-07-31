@@ -15,6 +15,7 @@ export class Album {
   thumb: string | null;
   size: number;
   medias?: MediaEntry[];
+  mediaStateHash?: string;
 
   public constructor(
     path: string,
@@ -63,6 +64,19 @@ export class Album {
     await this.load();
   }
 
+  private async getMediaStateHash(): Promise<string> {
+    const mediasPaths = this.medias
+      ? this.medias.map((m) => m.path).join(",")
+      : "";
+
+    const encoder = new TextEncoder();
+    const data = encoder.encode(mediasPaths);
+    return crypto.subtle.digest("SHA-256", data).then((hashBuffer) => {
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+    });
+  }
+
   public async loadDuplicates(): Promise<void> {
     if (
       this.medias?.some(
@@ -70,15 +84,26 @@ export class Album {
       )
     )
       return;
+
+    const currentStateHash = await this.getMediaStateHash();
+    if (this.mediaStateHash === currentStateHash) return;
+    this.mediaStateHash = currentStateHash;
+
     const duplicates: string[][] = await invoke("find_duplicates", {
       dir: this.path,
     });
+
     if (!this.medias) {
       await this.load();
       if (!this.medias) {
         return;
       }
     }
+
+    for (const item of this.medias) {
+      item.duplicates = undefined;
+    }
+
     for (const group of duplicates) {
       group.forEach((name: string) => {
         const entry = this.medias?.find((media) => media.name === name);

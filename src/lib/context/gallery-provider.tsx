@@ -31,7 +31,6 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
 
   const photosState = useMedia(
     albumsState.activeAlbum,
-    40,
     sortKey,
     sortDir,
     showDuplicates,
@@ -148,8 +147,6 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     createAlbum: albumsState.createAlbum,
     deleteAlbum: albumsState.deleteAlbum,
     media: photosState.media,
-    loadMore: photosState.loadMore,
-    isFullyLoaded: photosState.isFullyLoaded,
     columns,
     setColumns,
     sortKey,

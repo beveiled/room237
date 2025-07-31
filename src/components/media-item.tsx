@@ -159,6 +159,19 @@ export const MediaItem: React.FC<Props> = ({
             "block w-full cursor-pointer select-none",
             imgClassName,
           )}
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            const retryCount = parseInt(target.dataset.retryCount ?? "0");
+
+            if (retryCount < 15) {
+              setTimeout(() => {
+                target.dataset.retryCount = (retryCount + 1).toString();
+                const url = new URL(target.src, location.href);
+                url.searchParams.set("_retry", Date.now().toString());
+                target.src = url.toString();
+              }, 1000);
+            }
+          }}
         />
       )}
 

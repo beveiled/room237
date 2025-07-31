@@ -13,15 +13,15 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Toaster } from "@/components/ui/sonner";
 import { Updater } from "@/components/updater";
 import { GalleryProvider } from "@/lib/context/gallery-provider";
 import { attachConsole } from "@tauri-apps/plugin-log";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export default function GalleryPage() {
   useEffect(() => void attachConsole(), []);
+  const scrollerRef = useRef<HTMLDivElement>(null);
 
   return (
     <GalleryProvider>
@@ -33,10 +33,13 @@ export default function GalleryPage() {
           <AlbumList />
           <ResizableHandle className="opacity-0" />
           <ResizablePanel order={2}>
-            <ScrollArea className="h-screen flex-1 p-4 py-0">
+            <div
+              className="h-screen flex-1 overflow-auto p-4 py-0"
+              ref={scrollerRef}
+            >
               <MediaGridHeader />
-              <MediaGrid />
-            </ScrollArea>
+              <MediaGrid scrollerRef={scrollerRef} />
+            </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       </AppShell>
