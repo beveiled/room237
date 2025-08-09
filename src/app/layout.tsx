@@ -13,7 +13,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="overflow-y-hidden overscroll-none">
+      <body className="overflow-hidden overscroll-none">
         <div
           className="text-foreground h-full w-full rounded-3xl select-none"
           style={{

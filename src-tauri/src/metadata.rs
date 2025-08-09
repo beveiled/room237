@@ -1,18 +1,12 @@
-use std::{
-    fs::File,
-    io::{BufReader, BufWriter, Read, Write},
-    path::Path,
-    process::Command,
-};
+use std::{fs::File, io::BufReader, path::Path, process::Command};
 
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use exif::{Field, In, Reader, Tag, Value};
 use serde::Serialize;
-
-use crate::{
-    constants::{IMAGE_EXTENSIONS, VIDEO_EXTENSIONS},
-    util::{meta_path, newer_than},
-};
+use serde_json::Value as JsonValue;
+use sha2::{Digest, Sha256};
+use tauri::{AppHandle, Wry};
+use tauri_plugin_store::StoreExt;
 
 pub struct DetachedFileMeta {
     pub a: Option<u64>,
@@ -30,12 +24,10 @@ impl DetachedFileMeta {
         let s = self.s.unwrap_or(0) as u128 & ((1 << 40) - 1);
         let w = self.w.unwrap_or(0) as u128 & ((1 << 20) - 1);
         let h = self.h.unwrap_or(0) as u128 & ((1 << 20) - 1);
-
         packed |= a;
         packed |= s << 40;
         packed |= w << 80;
         packed |= h << 100;
-
         if self.i {
             packed |= 1u128 << 120;
         }
@@ -54,7 +46,6 @@ impl DetachedFileMeta {
         if self.h.is_some() {
             packed |= 1u128 << 125;
         }
-
         packed.to_string()
     }
 }
@@ -73,10 +64,16 @@ pub struct DetachedAlbum {
     pub thumb_path: Option<String>,
 }
 
+fn store_name_for_path(p: &Path) -> Option<String> {
+    let name = p.file_name()?.to_str()?;
+    let mut hasher = Sha256::new();
+    hasher.update(name.as_bytes());
+    Some(format!("{}.json", hex::encode(hasher.finalize())))
+}
+
 pub fn datetime_original(p: &Path) -> Option<u64> {
     let mut buf = BufReader::new(File::open(p).ok()?);
     let exif = Reader::new().read_from_container(&mut buf).ok()?;
-
     fn ascii(f: &Field) -> Option<String> {
         if let Value::Ascii(ref v) = f.value {
             v.get(0)
@@ -86,7 +83,6 @@ pub fn datetime_original(p: &Path) -> Option<u64> {
             None
         }
     }
-
     let txt = [Tag::DateTimeOriginal, Tag::DateTime]
         .iter()
         .find_map(|tag| {
@@ -94,23 +90,18 @@ pub fn datetime_original(p: &Path) -> Option<u64> {
                 .or_else(|| exif.fields().find(|f| f.tag == *tag))
                 .and_then(ascii)
         })?;
-
     NaiveDateTime::parse_from_str(&txt, "%Y:%m:%d %H:%M:%S")
         .ok()
         .map(|ndt| Utc.from_utc_datetime(&ndt).timestamp() as u64)
 }
 
 pub fn probe(path: &str) -> Result<(Option<u64>, Option<u32>, Option<u32>), String> {
-    log::info!("probing metadata for {}", path);
-
     let output = Command::new(ffmpeg_sidecar::paths::ffmpeg_path())
         .args(["-i", path, "-hide_banner"])
         .output()
         .map_err(|e| e.to_string())?;
-
     let stderr = String::from_utf8_lossy(&output.stderr);
     let (mut shoot, mut width, mut height) = (None, None, None);
-
     for line in stderr.lines() {
         if line.contains("Stream") && line.contains("Video:") {
             if let Some(pos) = line.find(", ") {
@@ -127,7 +118,6 @@ pub fn probe(path: &str) -> Result<(Option<u64>, Option<u32>, Option<u32>), Stri
                 }
             }
         }
-
         if line.contains("creation_time") {
             if let Some(pos) = line.find("creation_time") {
                 let time_part = &line[pos + 14..];
@@ -143,37 +133,31 @@ pub fn probe(path: &str) -> Result<(Option<u64>, Option<u32>, Option<u32>), Stri
 }
 
 #[tauri::command]
-pub fn get_file_metadata(path: &str) -> Result<String, String> {
+pub fn get_file_metadata(app: AppHandle<Wry>, path: &str) -> Result<String, String> {
     let p = Path::new(path);
-
     let added = p
         .metadata()
         .ok()
         .and_then(|m| m.created().ok())
         .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|d| d.as_secs());
-
     let ext_lower = p
         .extension()
         .and_then(|s| s.to_str())
         .unwrap_or("")
         .to_ascii_lowercase();
-
-    let is_image = IMAGE_EXTENSIONS.contains(&ext_lower.as_str());
-    let is_video = VIDEO_EXTENSIONS.contains(&ext_lower.as_str());
-
+    let is_image = crate::constants::IMAGE_EXTENSIONS.contains(&ext_lower.as_str());
+    let is_video = crate::constants::VIDEO_EXTENSIONS.contains(&ext_lower.as_str());
     let (mut shoot, width, height) = if is_image || is_video {
         probe(path)?
     } else {
         (None, None, None)
     };
-
     if is_image {
         if let Some(dt) = datetime_original(p) {
             shoot = Some(dt);
         }
     }
-
     let meta = DetachedFileMeta {
         a: added,
         s: shoot,
@@ -182,35 +166,21 @@ pub fn get_file_metadata(path: &str) -> Result<String, String> {
         w: width,
         h: height,
     };
-
-    Ok(meta.pack())
+    let packed = meta.pack();
+    if let Some(store_name) = store_name_for_path(p) {
+        let store = app.store(&store_name).map_err(|e| e.to_string())?;
+        store.set("meta", JsonValue::String(packed.clone()));
+        let _ = store.save();
+    }
+    Ok(packed)
 }
 
-pub fn get_file_metadata_cached(path: &Path, meta_dir: &Path) -> Result<String, String> {
-    let meta_file = meta_path(
-        meta_dir,
-        path.file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("unknown_meta"),
-    );
-
-    if meta_file.exists() && newer_than(&meta_file, path).unwrap_or(false) {
-        let mut s = String::new();
-        std::fs::File::open(&meta_file)
-            .map_err(|e| e.to_string())
-            .and_then(|f| {
-                BufReader::new(f)
-                    .read_to_string(&mut s)
-                    .map(|_| ())
-                    .map_err(|e| e.to_string())
-            })?;
-        return Ok(s.trim().to_string());
+pub fn get_file_metadata_cached(app: AppHandle<Wry>, path: &Path) -> Result<String, String> {
+    if let Some(store_name) = store_name_for_path(path) {
+        let store = app.store(&store_name).map_err(|e| e.to_string())?;
+        if let Some(JsonValue::String(s)) = store.get("meta") {
+            return Ok(s);
+        }
     }
-
-    let fresh = get_file_metadata(&path.to_string_lossy())?;
-    if let Ok(f) = File::create(&meta_file) {
-        let mut w = BufWriter::new(f);
-        let _ = writeln!(w, "{fresh}");
-    }
-    Ok(fresh)
+    get_file_metadata(app, &path.to_string_lossy())
 }

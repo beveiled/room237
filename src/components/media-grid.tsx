@@ -28,7 +28,6 @@ export default function MediaGrid({
     locked,
     activeAlbum,
     albums,
-    showDuplicates,
   } = useGallery();
 
   const [isUnfocused, setIsUnfocused] = useState(false);
@@ -230,7 +229,6 @@ export default function MediaGrid({
                 className="m-0 aspect-square w-full object-cover"
                 imgClassName="w-full object-cover aspect-square"
                 showExtras={columns < 10}
-                showDuplicates={showDuplicates}
                 style={{
                   borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
                   fontSize: `${(1 - columns / MAX_COLS) * 4 + 8}px`,
@@ -268,7 +266,6 @@ export default function MediaGrid({
               className="m-0 w-full object-cover"
               imgClassName="w-full object-cover"
               showExtras={columns < 10}
-              showDuplicates={showDuplicates}
             />
           </div>
         ))}
@@ -287,24 +284,26 @@ export default function MediaGrid({
             }}
           >
             {mediaRows[virtualRow.index]!.map((item, j) => (
-              <MediaItem
+              <div
                 key={item.url}
-                item={item}
-                selected={selection.has(item)}
-                onSelectToggle={toggleSelect}
-                onDragStart={onDragStart}
-                onView={() => viewer.open(virtualRow.index * columns + j)}
-                onRequestDelete={deleteMedia}
-                locked={locked}
-                className="m-0 aspect-square w-full object-cover"
-                imgClassName="w-full object-cover aspect-square"
-                showExtras={columns < 10}
-                showDuplicates={showDuplicates}
-                style={{
-                  borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
-                  fontSize: `${(1 - columns / MAX_COLS) * 4 + 8}px`,
-                }}
-              />
+                className="flex w-full items-center justify-center"
+              >
+                <MediaItem
+                  item={item}
+                  selected={selection.has(item)}
+                  onSelectToggle={toggleSelect}
+                  onDragStart={onDragStart}
+                  onView={() => viewer.open(virtualRow.index * columns + j)}
+                  onRequestDelete={deleteMedia}
+                  locked={locked}
+                  className="m-0"
+                  showExtras={columns < 10}
+                  style={{
+                    borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
+                    fontSize: `${(1 - columns / MAX_COLS) * 4 + 8}px`,
+                  }}
+                />
+              </div>
             ))}
           </div>
         ))}

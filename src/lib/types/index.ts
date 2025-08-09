@@ -13,7 +13,6 @@ export interface MediaEntry {
   meta: FileMeta;
   path: string;
   name: string;
-  duplicates?: string[];
 }
 
 export interface DetachedMediaEntry {

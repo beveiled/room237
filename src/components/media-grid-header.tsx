@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
 import { useGallery, type SortKey } from "@/lib/context/gallery-context";
+import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowDownAZ,
@@ -27,8 +28,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "./ui/select";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 
 const SORT_KEYS: Record<SortKey, { title: string; icon: IconName }> = {
   shoot: {
@@ -61,6 +60,7 @@ export default function MediaGridHeader() {
     media,
     showDuplicates,
     setShowDuplicates,
+    duplicatesTriggerRef,
   } = useGallery();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -146,27 +146,13 @@ export default function MediaGridHeader() {
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      onClick={async () => {
-                        if (!showDuplicates) {
-                          const toastId = toast.loading(
-                            "Loading duplicates...",
-                            { duration: Infinity },
-                          );
-                          await activeAlbum.loadDuplicates();
-                          toast.success("Duplicates loaded", {
-                            id: toastId,
-                            duration: 1000,
-                          });
-                          setShowDuplicates(true);
-                        } else {
-                          setShowDuplicates(false);
-                        }
-                      }}
+                      onClick={() => setShowDuplicates(!showDuplicates)}
                       className={cn(
                         "transition-shadow duration-200",
                         showDuplicates &&
                           "shadow-[0_0_5px_0_var(--color-green-400)]",
                       )}
+                      ref={duplicatesTriggerRef}
                     >
                       <SquareStack />
                       <span>

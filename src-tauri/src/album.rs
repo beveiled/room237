@@ -7,20 +7,25 @@ use std::{
     },
 };
 
+use rayon::prelude::*;
+use tauri::{AppHandle, Wry};
+
 use crate::{
     constants::{IMAGE_EXTENSIONS, VIDEO_EXTENSIONS},
     metadata::{get_file_metadata_cached, DetachedAlbum, DetachedMediaEntry},
     preload::{
-        enqueue_preload, preload_dir, start_preloader_worker, CURRENT_PRELOAD_CANCEL, PRELOADED,
-        PRELOAD_QUEUE,
+        enqueue_preload, preload_dir, start_hash_preloader_worker, start_preloader_worker,
+        CURRENT_PRELOAD_CANCEL, PRELOADED, PRELOAD_QUEUE,
     },
     thumb::ensure_thumb,
     util::{has_extension, heic_to_jpeg},
 };
-use rayon::prelude::*;
 
 #[tauri::command]
-pub fn get_albums_detached(root_dir: String) -> Result<Vec<DetachedAlbum>, String> {
+pub fn get_albums_detached(
+    app: AppHandle<Wry>,
+    root_dir: String,
+) -> Result<Vec<DetachedAlbum>, String> {
     let root = PathBuf::from(&root_dir);
     if !root.is_dir() {
         return Err(format!("{} is not a directory", root.display()));
@@ -35,9 +40,7 @@ pub fn get_albums_detached(root_dir: String) -> Result<Vec<DetachedAlbum>, Strin
         }
 
         let thumb_dir = path.join(".room237-thumb");
-        let meta_dir = path.join(".room237-meta");
         fs::create_dir_all(&thumb_dir).map_err(|e| e.to_string())?;
-        fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
 
         let thumb_files: Vec<_> = fs::read_dir(&thumb_dir)
             .map_err(|e| e.to_string())?
@@ -85,13 +88,19 @@ pub fn get_albums_detached(root_dir: String) -> Result<Vec<DetachedAlbum>, Strin
         enqueue_preload(&path);
     }
 
+    start_preloader_worker(app.clone());
+    start_hash_preloader_worker(app);
+
     albums.sort_by(|a, b| a.name.cmp(&b.name));
     log::info!("albums listed {}", albums.len());
     Ok(albums)
 }
 
 #[tauri::command]
-pub async fn get_album_media(dir: String) -> Result<Vec<DetachedMediaEntry>, String> {
+pub async fn get_album_media(
+    app: AppHandle<Wry>,
+    dir: String,
+) -> Result<Vec<DetachedMediaEntry>, String> {
     let dir = PathBuf::from(&dir);
     if !dir.is_dir() {
         return Err(format!("{} is not a directory", dir.display()));
@@ -102,24 +111,18 @@ pub async fn get_album_media(dir: String) -> Result<Vec<DetachedMediaEntry>, Str
             cancel.store(true, Ordering::Relaxed);
             log::info!("preload cancel {}", dir.display());
         }
-
-        log::info!("preload now {}", dir.display());
-        let _ = preload_dir(&dir, Arc::new(AtomicBool::new(false)));
+        let _ = preload_dir(&app, &dir, Arc::new(AtomicBool::new(false)));
         PRELOADED.lock().unwrap().insert(dir.clone());
-
         {
             let mut q = PRELOAD_QUEUE.lock().unwrap();
             q.retain(|p| p != &dir);
         }
-        start_preloader_worker();
+        start_preloader_worker(app.clone());
+        start_hash_preloader_worker(app.clone());
     }
 
-    log::info!("album read {}", dir.display());
-
     let thumb_dir = dir.join(".room237-thumb");
-    let meta_dir = dir.join(".room237-meta");
     fs::create_dir_all(&thumb_dir).map_err(|e| e.to_string())?;
-    fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
 
     for entry in fs::read_dir(&dir).map_err(|e| e.to_string())? {
         let path = entry.map_err(|e| e.to_string())?.path();
@@ -149,7 +152,7 @@ pub async fn get_album_media(dir: String) -> Result<Vec<DetachedMediaEntry>, Str
         .filter_map(|path| {
             (|| -> Result<DetachedMediaEntry, String> {
                 ensure_thumb(path, &thumb_dir)?;
-                let meta = get_file_metadata_cached(path, &meta_dir)?;
+                let meta = get_file_metadata_cached(app.clone(), path)?;
                 Ok(DetachedMediaEntry {
                     meta,
                     name: path.file_name().unwrap().to_string_lossy().into_owned(),
@@ -242,25 +245,23 @@ pub fn move_media(source: String, target: String, media: String) -> Result<Strin
 }
 
 #[tauri::command]
-pub fn register_new_media(album_path: String, media_name: String) -> Result<DetachedMediaEntry, String> {
+pub fn register_new_media(
+    app: AppHandle<Wry>,
+    album_path: String,
+    media_name: String,
+) -> Result<DetachedMediaEntry, String> {
     let album_path = PathBuf::from(&album_path);
     let path = album_path.join(&media_name);
-
     if !path.is_file() {
         return Err(format!("{} is not a file", path.display()));
     }
-
     let thumb_dir = album_path.join(".room237-thumb");
-    let meta_dir = album_path.join(".room237-meta");
-
     fs::create_dir_all(&thumb_dir).map_err(|e| e.to_string())?;
-    fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
     ensure_thumb(&path, &thumb_dir)?;
-    let meta = get_file_metadata_cached(&path, &meta_dir)?;
-    let entry = DetachedMediaEntry {
+    let meta = get_file_metadata_cached(app, &path)?;
+    log::info!("registered new media {}", path.display());
+    Ok(DetachedMediaEntry {
         meta,
         name: path.file_name().unwrap().to_string_lossy().into_owned(),
-    };
-    log::info!("registered new media {}", path.display());
-    Ok(entry)
+    })
 }

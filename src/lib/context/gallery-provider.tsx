@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRootDir } from "@/lib/hooks/use-root-dir";
 import { useAlbums } from "@/lib/hooks/use-albums";
 import { useMedia } from "@/lib/hooks/use-media";
@@ -24,17 +24,14 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     useRootDir();
   const albumsState = useAlbums(rootDir);
 
+  const duplicatesTriggerRef = useRef<HTMLButtonElement | null>(null);
+
   const [columns, setColumnsInternal] = useState(4);
   const [sortKey, setSortKeyInternal] = useState<SortKey>("shoot");
   const [sortDir, setSortDirInternal] = useState<SortDir>("desc");
   const [showDuplicates, setShowDuplicates] = useState(false);
 
-  const photosState = useMedia(
-    albumsState.activeAlbum,
-    sortKey,
-    sortDir,
-    showDuplicates,
-  );
+  const photosState = useMedia(albumsState.activeAlbum, sortKey, sortDir);
   const sel = useSelection();
   const drag = useDragDrop(sel.selection);
   const viewer = useViewer(photosState.media.length);
@@ -177,6 +174,7 @@ export function GalleryProvider({ children }: { children: ReactNode }) {
     setRoot,
     showDuplicates,
     setShowDuplicates,
+    duplicatesTriggerRef,
   };
 
   return (

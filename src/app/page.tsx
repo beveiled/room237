@@ -2,12 +2,13 @@
 
 import AppShell from "@/components/app-shell";
 import { Controls } from "@/components/controls";
+import { DuplicatesView } from "@/components/duplicates-view";
 import MediaGrid from "@/components/media-grid";
+import MediaGridHeader from "@/components/media-grid-header";
 import MediaViewer from "@/components/media-viewer";
 import { SelectionMenu } from "@/components/selection-menu";
 import AlbumList from "@/components/sidebar/album-list";
 import DirectoryPicker from "@/components/sidebar/directory-picker";
-import MediaGridHeader from "@/components/media-grid-header";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -34,7 +35,7 @@ export default function GalleryPage() {
           <ResizableHandle className="opacity-0" />
           <ResizablePanel order={2}>
             <div
-              className="h-screen flex-1 overflow-auto p-4 py-0"
+              className="h-screen flex-1 overflow-auto p-4 pt-0"
               ref={scrollerRef}
             >
               <MediaGridHeader />
@@ -48,6 +49,7 @@ export default function GalleryPage() {
       <SelectionMenu />
       <DirectoryPicker />
       <Updater />
+      <DuplicatesView />
     </GalleryProvider>
   );
 }

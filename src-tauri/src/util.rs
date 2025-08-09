@@ -1,13 +1,6 @@
-use std::{
-    io,
-    path::{Path, PathBuf},
-};
+use std::{io, path::Path};
 
 use ffmpeg_sidecar::command::FfmpegCommand;
-
-pub fn meta_path(meta_dir: &Path, file_name: &str) -> PathBuf {
-    meta_dir.join(format!("{file_name}.meta"))
-}
 
 pub fn newer_than(a: &Path, b: &Path) -> io::Result<bool> {
     Ok(a.metadata()?.modified()? >= b.metadata()?.modified()?)

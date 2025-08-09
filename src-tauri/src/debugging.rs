@@ -1,12 +1,13 @@
 use std::{fs, path::PathBuf};
 
 use rayon::prelude::*;
+use tauri::{AppHandle, Wry};
 
 use crate::{
     constants::{IMAGE_EXTENSIONS, VIDEO_EXTENSIONS},
     metadata::get_file_metadata,
     thumb::ensure_thumb,
-    util::{has_extension, heic_to_jpeg, meta_path},
+    util::{has_extension, heic_to_jpeg},
 };
 
 #[tauri::command]
@@ -52,7 +53,7 @@ pub async fn rebuild_thumbnails(root_dir: String) -> Result<u64, String> {
 }
 
 #[tauri::command]
-pub async fn rebuild_metadata(root_dir: String) -> Result<u64, String> {
+pub async fn rebuild_metadata(app: AppHandle<Wry>, root_dir: String) -> Result<u64, String> {
     let root = PathBuf::from(&root_dir);
     if !root.is_dir() {
         return Err(format!("{} is not a directory", root.display()));
@@ -66,12 +67,6 @@ pub async fn rebuild_metadata(root_dir: String) -> Result<u64, String> {
             continue;
         }
 
-        let meta_dir = album.join(".room237-meta");
-        if meta_dir.exists() {
-            fs::remove_dir_all(&meta_dir).map_err(|e| e.to_string())?;
-        }
-        fs::create_dir_all(&meta_dir).map_err(|e| e.to_string())?;
-
         for entry in fs::read_dir(&album).map_err(|e| e.to_string())? {
             let path = entry.map_err(|e| e.to_string())?.path();
             if has_extension(&path, &["heic"]) {
@@ -84,14 +79,7 @@ pub async fn rebuild_metadata(root_dir: String) -> Result<u64, String> {
                 continue;
             }
 
-            let meta = get_file_metadata(&path.to_string_lossy())?;
-            let meta_file = meta_path(
-                &meta_dir,
-                path.file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("unknown_meta"),
-            );
-            fs::write(&meta_file, meta).map_err(|e| e.to_string())?;
+            let _ = get_file_metadata(app.clone(), &path.to_string_lossy())?;
             written += 1;
         }
     }

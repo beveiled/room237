@@ -30,7 +30,6 @@ export function useMedia(
   album: Album | null,
   sortKey: SortKey,
   sortDir: SortDir,
-  showDuplicates: boolean,
 ) {
   const [all, setAll] = useState<MediaEntry[]>([]);
   const [layout, setLayoutInternal] = useState<LayoutType>("default");
@@ -69,51 +68,11 @@ export function useMedia(
   }, [loadInitial]);
 
   const sorted = useMemo(() => {
-    let arr = [...all];
-    if (showDuplicates) {
-      const groups = new Map<string, Set<string>>();
-      const processed = new Set<string>();
-
-      for (const item of arr) {
-        if (
-          item.duplicates &&
-          item.duplicates.length > 0 &&
-          !processed.has(item.name)
-        ) {
-          const group = new Set([item.name, ...item.duplicates]);
-          const groupKey = item.name;
-          groups.set(groupKey, group);
-
-          for (const member of group) {
-            processed.add(member);
-          }
-        }
-      }
-
-      arr = [];
-      for (const [, group] of groups) {
-        if (group.size > 1) {
-          for (const itemName of group) {
-            const item = all.find((entry) => entry.name === itemName);
-            if (item) {
-              const duplicates = Array.from(group).filter(
-                (name) => name !== itemName,
-              );
-              arr.push({
-                ...item,
-                duplicates,
-              });
-            }
-          }
-        }
-      }
-
-      return arr;
-    }
+    const arr = [...all];
     arr.sort((a, b) => cmp(a, b, sortKey));
     if (sortDir === "desc") arr.reverse();
     return arr;
-  }, [all, sortKey, sortDir, showDuplicates]);
+  }, [all, sortKey, sortDir]);
 
   const addEntry = (e: MediaEntry) =>
     setAll((p) => (p.some((i) => i.name === e.name) ? p : [e, ...p]));

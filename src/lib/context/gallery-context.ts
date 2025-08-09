@@ -1,6 +1,12 @@
 "use client";
 
-import { createContext, useContext } from "react";
+import {
+  createContext,
+  useContext,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 import type { LayoutType, MediaEntry } from "@/lib/types";
 import type { Album } from "@/lib/types/album";
 
@@ -62,7 +68,8 @@ type Ctx = {
   };
   setRoot: (dir: string) => void;
   showDuplicates: boolean;
-  setShowDuplicates: React.Dispatch<React.SetStateAction<boolean>>;
+  setShowDuplicates: Dispatch<SetStateAction<boolean>>;
+  duplicatesTriggerRef: RefObject<HTMLButtonElement | null>;
 };
 
 export const GalleryContext = createContext<Ctx>(null as unknown as Ctx);

@@ -29,7 +29,6 @@ interface Props {
   imgClassName?: string;
   showExtras?: boolean;
   style?: React.CSSProperties;
-  showDuplicates: boolean;
 }
 
 export const MediaItem: React.FC<Props> = ({
@@ -44,7 +43,6 @@ export const MediaItem: React.FC<Props> = ({
   imgClassName,
   showExtras = true,
   style,
-  showDuplicates,
 }) => {
   const [confirm, setConfirm] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -112,7 +110,6 @@ export const MediaItem: React.FC<Props> = ({
         className,
         selected && "ring-3 ring-blue-700",
         locked && "blur-lg",
-        showDuplicates && "shadow-[0_0_5px_0_var(--color-green-400)]",
       )}
       draggable
       onDragStart={(e) => onDragStart(e, item)}
@@ -132,11 +129,6 @@ export const MediaItem: React.FC<Props> = ({
               })
             : "Unknown Date"}
         </div>
-        {showDuplicates && (
-          <div className="text-foreground rounded-md bg-black/70 px-2 py-0.5 opacity-0 backdrop-blur-lg transition-all duration-150 group-hover:opacity-100">
-            {item.name}
-          </div>
-        )}
       </div>
 
       {isVideo(item.name) ? (
