@@ -5,17 +5,18 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useGallery } from "@/lib/context/gallery-context";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AnimatePresence, motion } from "framer-motion";
 import { Folder, SettingsIcon, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
+import { useRoom237 } from "@/lib/stores";
 
 export function Settings() {
   const [isOpen, setOpen] = useState(false);
   const [animate, setAnimate] = useState(false);
-  const { decoy } = useGallery();
+  const decoyRoot = useRoom237((state) => state.decoyRoot);
+  const setDecoyRoot = useRoom237((state) => state.setDecoyRoot);
 
   return (
     <Popover open={isOpen} onOpenChange={() => null}>
@@ -62,14 +63,14 @@ export function Settings() {
         <div className="text-muted-foreground mb-1 ml-2 text-xs">
           Decoy gallery
         </div>
-        {decoy.decoyRoot && (
+        {decoyRoot && (
           <div className="text-muted-foreground mb-2 ml-2 flex items-center justify-between">
-            <span className="text-xs">{decoy.decoyRoot}</span>
+            <span className="text-xs">{decoyRoot}</span>
             <Button
               variant="ghost"
               className="size-5 p-0"
               onClick={() => {
-                void decoy.setDecoyRoot(null);
+                void setDecoyRoot(null);
               }}
             >
               <X className="size-4" />
@@ -82,11 +83,11 @@ export function Settings() {
           onClick={async () => {
             const dir = await open({ directory: true });
             if (!dir) return;
-            void decoy.setDecoyRoot(dir);
+            void setDecoyRoot(dir);
           }}
         >
           <Folder />
-          {decoy.decoyRoot ? "Change" : "Pick"} decoy root
+          {decoyRoot ? "Change" : "Pick"} decoy root
         </Button>
       </PopoverContent>
     </Popover>

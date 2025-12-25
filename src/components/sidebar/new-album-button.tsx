@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import { useState } from "react";
-import { useGallery } from "@/lib/context/gallery-context";
+import { useAlbums } from "@/lib/hooks/use-albums";
 
 export function NewAlbumButton() {
-  const { createAlbum } = useGallery();
+  const { createAlbum } = useAlbums();
   const [open, setOpen] = useState(false);
   const [txt, setTxt] = useState("");
   return (

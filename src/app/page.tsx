@@ -16,7 +16,13 @@ import {
 } from "@/components/ui/resizable";
 import { Toaster } from "@/components/ui/sonner";
 import { Updater } from "@/components/updater";
-import { GalleryProvider } from "@/lib/context/gallery-provider";
+import {
+  useAlbumWatcher,
+  useGalleryController,
+} from "@/lib/hooks/use-control-gallery";
+import { useKeyboardShortcuts } from "@/lib/hooks/use-keyboard-shortcuts";
+import { useMediaWatcher } from "@/lib/hooks/use-media-watcher";
+import { useStorePersistence } from "@/lib/hooks/use-store-persistence";
 import { attachConsole } from "@tauri-apps/plugin-log";
 import { useEffect, useRef } from "react";
 
@@ -24,11 +30,17 @@ export default function GalleryPage() {
   useEffect(() => void attachConsole(), []);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
+  useStorePersistence();
+  useGalleryController();
+  useAlbumWatcher();
+  useMediaWatcher();
+  useKeyboardShortcuts();
+
   return (
-    <GalleryProvider>
+    <>
       <Controls />
       <AppShell>
-        {/* For some reason, if there is nothing going on on a page, Safari stops all backdrop-blur's. That's why we have a jumping square */}
+        {/* BUG: For some reason, if there is nothing going on on a page, Safari stops all backdrop-blur's. That's why we have a jumping square */}
         <div className="absolute bottom-0 left-0 z-50 size-[1px] animate-bounce bg-black/10 opacity-5" />
         <ResizablePanelGroup direction="horizontal">
           <AlbumList />
@@ -50,6 +62,6 @@ export default function GalleryPage() {
       <DirectoryPicker />
       <Updater />
       <DuplicatesView />
-    </GalleryProvider>
+    </>
   );
 }

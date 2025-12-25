@@ -1,54 +1,91 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useState } from "react";
-import type { Album } from "@/lib/types/album";
+import { useCallback, useState } from "react";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { EyeOff } from "lucide-react";
+import { EyeOff, Heart } from "lucide-react";
 import { type DragEvent as ReactDragEvent } from "react";
-import { useGallery } from "@/lib/context/gallery-context";
+import { useRoom237 } from "@/lib/stores";
+import { useStoreWithEqualityFn } from "zustand/traditional";
+import { useUpload } from "@/lib/hooks/use-upload";
+import { FAVORITES_ALBUM_ID } from "@/lib/consts";
 
-interface AlbumItemProps {
-  album: Album;
-  active: boolean;
-  onClick: () => void;
-  loading: boolean;
-}
-
-export const AlbumItem: React.FC<AlbumItemProps> = ({
-  album,
-  active,
-  onClick,
-  loading,
-}) => {
-  const { addFilesToAlbum, moveDraggedToAlbum } = useGallery();
+export const AlbumItem = ({ albumName }: { albumName: string }) => {
+  const album = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => {
+      if (albumName === "Favorites" || albumName === FAVORITES_ALBUM_ID) {
+        return state.getFavoritesAlbum();
+      }
+      return state.albums[albumName];
+    },
+    (a, b) => a?.id === b?.id,
+  );
+  const { addFilesToAlbum, moveDraggedToAlbum } = useUpload();
   const [highlighted, setHighlighted] = useState(false);
+  const setActive = useRoom237((state) => state.setActive);
+  const setShowDuplicates = useRoom237((state) => state.setShowDuplicates);
 
-  const handleDrop = (e: ReactDragEvent<HTMLDivElement>): void => {
-    e.preventDefault();
-    setHighlighted(false);
-    if (e.dataTransfer?.files?.length) {
-      void addFilesToAlbum(album, e.dataTransfer.files);
-    } else {
-      void moveDraggedToAlbum(album);
+  const handleDrop = useCallback(
+    (e: ReactDragEvent<HTMLDivElement>): void => {
+      if (!album) return;
+
+      e.preventDefault();
+      setHighlighted(false);
+      if (album.path === FAVORITES_ALBUM_ID) return;
+      if (e.dataTransfer?.files?.length) {
+        void addFilesToAlbum(album, e.dataTransfer.files);
+      } else {
+        void moveDraggedToAlbum(album);
+      }
+    },
+    [album, addFilesToAlbum, moveDraggedToAlbum],
+  );
+
+  const handleDragEnter = useCallback(
+    (e: ReactDragEvent<HTMLDivElement>): void => {
+      if (!album) return;
+      e.preventDefault();
+      if (album.path === FAVORITES_ALBUM_ID) return;
+      setHighlighted(true);
+    },
+    [album],
+  );
+
+  const handleDragLeave = useCallback((): void => setHighlighted(false), []);
+
+  const onClick = useCallback(() => {
+    if (!album) return;
+    void setActive(album.name);
+    setShowDuplicates(false);
+  }, [album, setActive, setShowDuplicates]);
+
+  const active = useRoom237((state) => {
+    if (albumName === "Favorites" || albumName === FAVORITES_ALBUM_ID) {
+      return (
+        state.activeAlbumName === "Favorites" ||
+        state.activeAlbumName === FAVORITES_ALBUM_ID
+      );
     }
-  };
+    return state.activeAlbumName === albumName;
+  });
+  const loading = useRoom237((state) => state.loadingAlbum === albumName);
 
-  const handleDragEnter = (e: ReactDragEvent<HTMLDivElement>): void => {
-    e.preventDefault();
-    setHighlighted(true);
-  };
-
-  const handleDragLeave = (): void => setHighlighted(false);
+  if (!album) return null;
 
   return (
     <motion.div
-      exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
+      initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+      animate={{ opacity: 1, height: "auto", marginBottom: "0.25rem" }}
+      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+      transition={{ duration: 0.15 }}
+      key={`album-item-${album.path}`}
       onClick={onClick}
       onDragEnter={handleDragEnter}
       onDragOver={(e) => {
         e.preventDefault();
+        if (album.path === FAVORITES_ALBUM_ID) return;
         setHighlighted(true);
       }}
       onDragLeave={handleDragLeave}
@@ -65,12 +102,20 @@ export const AlbumItem: React.FC<AlbumItemProps> = ({
           <img
             src={album.thumb}
             alt="thumb"
-            className="h-full w-full object-cover blur-[1px]"
+            // BUG: Webkit (Safari) ignores border radius on the parent overflow-hidden element in case of images
+            className="h-full w-full rounded-lg object-cover blur-[1px]"
           />
         )}
-        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-          <EyeOff className="text-foreground size-3 opacity-70" />
-        </div>
+        {album.path !== FAVORITES_ALBUM_ID && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+            <EyeOff className="text-foreground size-3 opacity-70" />
+          </div>
+        )}
+        {album.path === FAVORITES_ALBUM_ID && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Heart className="size-4 text-red-500" />
+          </div>
+        )}
       </div>
       <span className="flex-1 truncate text-sm">{album.name}</span>
       <span className="text-muted-foreground text-sm">{album.size}</span>

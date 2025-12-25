@@ -3,23 +3,40 @@
 import { AlbumItem } from "@/components/album-item";
 import { NewAlbumButton } from "@/components/sidebar/new-album-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useGallery } from "@/lib/context/gallery-context";
+import { useRoom237 } from "@/lib/stores";
 import { Settings } from "../settings";
 import { Button } from "../ui/button";
 import { ResizablePanel } from "../ui/resizable";
+import { AnimatePresence } from "framer-motion";
+import { useRootDir } from "@/lib/hooks/use-root-dir";
+import { useMemo } from "react";
+import { FAVORITES_ALBUM_ID } from "@/lib/consts";
+import { useStoreWithEqualityFn } from "zustand/traditional";
+import { isEqual } from "lodash";
 
 export default function AlbumList() {
-  const {
-    albumsReady,
-    albums,
-    activeAlbum,
-    setActive,
-    rootDir,
-    pickDirectory,
-    loadingAlbum,
-    decoy,
-    setShowDuplicates,
-  } = useGallery();
+  const albumsReady = useRoom237((state) => state.albumsReady);
+  const albums = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => state.albums,
+    isEqual,
+  );
+  const favoritesAlbum = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => state.favoritesAlbum,
+    isEqual,
+  );
+  const rootDir = useRoom237((state) => state.rootDir);
+  const { pickDirectory } = useRootDir();
+  const displayDecoy = useRoom237((state) => state.displayDecoy);
+
+  const albumNames = useMemo(() => {
+    const names = Object.keys(albums);
+    if (favoritesAlbum) {
+      return [FAVORITES_ALBUM_ID, ...names];
+    }
+    return names;
+  }, [albums, favoritesAlbum]);
 
   if (!rootDir) return null;
 
@@ -35,8 +52,9 @@ export default function AlbumList() {
       <div className="absolute z-50 h-8 w-full" data-tauri-drag-region></div>
       <div className="h-screen p-2 pr-0">
         <div className="bg-background/10 border-border h-full space-y-1 rounded-2xl border p-2 pt-10 shadow-xl backdrop-blur-2xl">
-          <ScrollArea className="h-[calc(100vh-6.5rem)] space-y-2 pr-3 pb-1">
+          <ScrollArea className="h-[calc(100vh-6.5rem)] pr-3 pb-1">
             {!albumsReady &&
+              rootDir &&
               Array.from({ length: 5 }).map((_, i) => (
                 <div
                   key={i}
@@ -46,21 +64,17 @@ export default function AlbumList() {
                   <div className="h-4 w-32 animate-pulse rounded-sm bg-white/10" />
                 </div>
               ))}
-            {albums.map((a) => (
-              <AlbumItem
-                key={a.name}
-                album={a}
-                active={a.name === activeAlbum?.name}
-                loading={a.name === loadingAlbum}
-                onClick={() => {
-                  setActive(a.name);
-                  setShowDuplicates(false);
-                }}
-              />
-            ))}
+            <AnimatePresence initial={false}>
+              {albumNames.map((a) => {
+                if (a === FAVORITES_ALBUM_ID && favoritesAlbum) {
+                  return <AlbumItem key={a} albumName="Favorites" />;
+                }
+                return <AlbumItem key={a} albumName={a} />;
+              })}
+            </AnimatePresence>
             <NewAlbumButton />
           </ScrollArea>
-          {!decoy.displayDecoy && (
+          {!displayDecoy && (
             <div className="flex justify-between">
               <Button
                 variant="outline"

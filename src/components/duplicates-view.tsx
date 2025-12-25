@@ -1,12 +1,19 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useGallery } from "@/lib/context/gallery-context";
 import type { MediaEntry } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { Trash, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "./ui/button";
+import { markNonDuplicates } from "@/lib/fs/albumService";
+import { FAVORITES_ALBUM_ID } from "@/lib/consts";
+import { useRoom237 } from "@/lib/stores";
+import { useActiveAlbum } from "@/lib/hooks/use-albums";
+import { useUpload } from "@/lib/hooks/use-upload";
+import { useStoreWithEqualityFn } from "zustand/traditional";
+import { isEqual } from "lodash";
 
 function Duplicate({
   image,
@@ -74,18 +81,83 @@ function Duplicate({
 export function DuplicatesView() {
   const [ready, setReady] = useState(false);
   const [duplicates, setDuplicates] = useState<string[][]>([]);
-  const { activeAlbum, deleteMedia, showDuplicates, duplicatesTriggerRef } =
-    useGallery();
+  const activeAlbum = useActiveAlbum();
+  const { deleteMedia } = useUpload();
+  const showDuplicates = useRoom237((state) => state.showDuplicates);
+  const setShowDuplicates = useRoom237((state) => state.setShowDuplicates);
+  const duplicatesAvailable = useRoom237((state) => state.duplicatesAvailable);
+  const setDuplicatesAvailable = useRoom237(
+    (state) => state.setDuplicatesAvailable,
+  );
+  const duplicatesTriggerRef = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => state.duplicatesTriggerRef,
+    isEqual,
+  );
+
+  const applyDuplicatesUpdate = useCallback(
+    (
+      updater: string[][] | ((prev: string[][]) => string[][]),
+      options?: { keepSingles?: boolean },
+    ) => {
+      setDuplicates((prev) => {
+        const resolved =
+          typeof updater === "function"
+            ? (updater as (prev: string[][]) => string[][])(prev)
+            : updater;
+        const normalized = resolved
+          .map((group) => group.filter(Boolean))
+          .filter((group) =>
+            options?.keepSingles ? group.length > 0 : group.length > 1,
+          );
+
+        if (activeAlbum) {
+          activeAlbum.duplicates = normalized;
+        }
+
+        return normalized;
+      });
+    },
+    [activeAlbum],
+  );
 
   useEffect(() => {
-    if (!showDuplicates || !activeAlbum) return;
-    void (async () => {
+    const hasAny = duplicates.some((group) => group.length > 1);
+    setDuplicatesAvailable(hasAny);
+
+    if (!hasAny && showDuplicates) {
+      setShowDuplicates(false);
+    }
+  }, [duplicates, setDuplicatesAvailable, showDuplicates, setShowDuplicates]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDuplicates = async () => {
       setReady(false);
+
+      if (!activeAlbum || activeAlbum.path === FAVORITES_ALBUM_ID) {
+        applyDuplicatesUpdate([]);
+        setReady(true);
+        return;
+      }
+
       await activeAlbum.loadDuplicates();
-      setDuplicates(activeAlbum.duplicates ?? []);
+
+      if (cancelled) return;
+
+      applyDuplicatesUpdate(activeAlbum.duplicates ?? [], {
+        keepSingles: true,
+      });
       setReady(true);
-    })();
-  }, [showDuplicates, activeAlbum]);
+    };
+
+    void loadDuplicates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeAlbum, applyDuplicatesUpdate, activeAlbum?.size]);
 
   if (!activeAlbum) {
     return null;
@@ -93,7 +165,7 @@ export function DuplicatesView() {
 
   return (
     <AnimatePresence>
-      {showDuplicates && (
+      {showDuplicates && duplicatesAvailable && (
         <motion.div
           key="duplicates-viewer"
           className="border-border bg-background/60 fixed right-6 w-[60vw] origin-top overflow-y-scroll rounded-2xl border backdrop-blur-lg"
@@ -127,31 +199,64 @@ export function DuplicatesView() {
           ) : duplicates &&
             duplicates.length > 0 &&
             duplicates.some((group) => group.length > 1) ? (
-            <div className="p-4 pb-0">
+            <div className="flex flex-col gap-2 p-4">
               {duplicates.map(
                 (group, index) =>
                   group.length > 1 && (
-                    <div key={index} className="mb-4 grid grid-cols-5 gap-4">
-                      {group.map((item) => {
-                        const image = activeAlbum.medias?.find(
-                          (media) => media.name === item,
-                        );
-                        if (!image) return null;
-                        return (
-                          <Duplicate
-                            key={image.name}
-                            image={image}
-                            onDelete={() => {
-                              void deleteMedia(image);
-                              setDuplicates((prev) =>
-                                prev.map((g) =>
-                                  g.filter((i) => i !== image.name),
-                                ),
-                              );
-                            }}
-                          />
-                        );
-                      })}
+                    <div
+                      key={index}
+                      className="border-border/60 bg-background/60 relative overflow-hidden rounded-2xl border p-3 shadow-sm"
+                    >
+                      <div className="mb-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={async () => {
+                            if (!activeAlbum) return;
+                            await markNonDuplicates(activeAlbum.path, group);
+                            applyDuplicatesUpdate((prev) =>
+                              prev.filter((_, i) => i !== index),
+                            );
+                          }}
+                        >
+                          Mark as non-duplicates
+                        </Button>
+                      </div>
+                      <div
+                        className={cn(
+                          "relative grid grid-cols-5 gap-3",
+                          group.length > 5
+                            ? "overflow-x-auto pr-8 pb-2"
+                            : "flex-wrap",
+                        )}
+                      >
+                        {group.map((item) => {
+                          const image = activeAlbum.medias?.find(
+                            (media) => media.name === item,
+                          );
+                          if (!image) return null;
+                          return (
+                            <div key={image.name} className="flex-shrink-0">
+                              <Duplicate
+                                image={image}
+                                onDelete={() => {
+                                  void deleteMedia(image);
+                                  applyDuplicatesUpdate((prev) =>
+                                    prev
+                                      .map((g) =>
+                                        g.filter((i) => i !== image.name),
+                                      )
+                                      .filter((g) => g.length > 0),
+                                  );
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                        {group.length > 5 && (
+                          <div className="pointer-events-none absolute top-0 right-0 h-full w-12 bg-gradient-to-l from-black/40 to-transparent" />
+                        )}
+                      </div>
                     </div>
                   ),
               )}

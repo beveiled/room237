@@ -1,31 +1,40 @@
 "use client";
 
-import { Player } from "@lottiefiles/react-lottie-player";
 import { invoke } from "@tauri-apps/api/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { BookA, GalleryVerticalEnd, Loader2, Logs } from "lucide-react";
+import {
+  BookA,
+  GalleryVerticalEnd,
+  Loader2,
+  Logs,
+  RefreshCcw,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
 
 import { relaunch } from "@tauri-apps/plugin-process";
+import { LottiePlayer } from "@/lib/lottie";
+import { clearRoom237Artifacts, resetDuplicates } from "@/lib/fs/albumService";
+import { getStore } from "@/lib/fs/state";
+import { useRoom237 } from "@/lib/stores";
 
-export function Debugger({
-  open,
-  rootDir,
-  isLogger,
-  setIsLogger,
-}: {
-  open: boolean;
-  rootDir: string;
-  isLogger: boolean;
-  setIsLogger: (open: boolean) => void;
-}) {
+export function Debugger() {
   const [thumbnailsRebuilding, setThumbnailsRebuilding] = useState(false);
   const [metadataRebuilding, setMetadataRebuilding] = useState(false);
+  const [resettingDupes, setResettingDupes] = useState(false);
+  const [clearingArtifacts, setClearingArtifacts] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const isDebug = useRoom237((state) => state.isDebug);
+  const rootDir = useRoom237((state) => state.rootDir);
+  const isLogger = useRoom237((state) => state.isLogger);
+  const setIsLogger = useRoom237((state) => state.setIsLogger);
+  const setRootDir = useRoom237((state) => state.setRootDir);
+  const setAllowOpen = useRoom237((state) => state.setAllowOpen);
 
   return (
     <AnimatePresence>
-      {open && (
+      {isDebug && (
         <>
           <div
             className="absolute top-0 z-[149] h-8 w-full"
@@ -38,10 +47,10 @@ export function Debugger({
             exit={{ opacity: 0, transition: { duration: 0.3 } }}
             className="bg-background/80 fixed inset-0 z-[148] flex flex-col items-center justify-center rounded-3xl pb-6 backdrop-blur-sm"
           >
-            <Player
+            <LottiePlayer
               src="/lottie/debugger.json"
               background="transparent"
-              className="size-26"
+              className="size-26 invert"
               loop
               autoplay
             />
@@ -99,6 +108,61 @@ export function Debugger({
             <Button className="mt-2" onClick={() => setIsLogger(!isLogger)}>
               <Logs />
               {isLogger ? "Close Logger" : "Open Logger"}
+            </Button>
+            <Button
+              className="mt-2"
+              variant="secondary"
+              disabled={resettingDupes}
+              onClick={async () => {
+                setResettingDupes(true);
+                try {
+                  if (!rootDir) return;
+                  await resetDuplicates(rootDir);
+                } finally {
+                  setResettingDupes(false);
+                }
+              }}
+            >
+              {resettingDupes ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <RefreshCcw />
+              )}
+              Reset Duplicates
+            </Button>
+            <Button
+              className="mt-2"
+              variant="destructive"
+              disabled={clearingArtifacts}
+              onClick={async () => {
+                if (!confirmClear) {
+                  setConfirmClear(true);
+                  setTimeout(() => setConfirmClear(false), 2500);
+                  return;
+                }
+                setClearingArtifacts(true);
+                try {
+                  if (!rootDir) return;
+                  await clearRoom237Artifacts(rootDir);
+                  const store = await getStore();
+                  await store.set("rootDir", null);
+                  await store.save();
+                  setRootDir(null);
+                  setAllowOpen(false);
+                } finally {
+                  setClearingArtifacts(false);
+                  setConfirmClear(false);
+                }
+              }}
+            >
+              {clearingArtifacts ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <Trash2 />
+              )}
+              {confirmClear
+                ? "Confirm clear (destructive)"
+                : "Clear room237 artifacts"}
             </Button>
           </motion.div>
         </>

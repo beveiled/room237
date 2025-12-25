@@ -1,5 +1,6 @@
 "use client";
 
+import { useRoom237 } from "@/lib/stores";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -10,17 +11,14 @@ interface LogEntry {
   timestamp: Date;
 }
 
-interface LoggerProps {
-  open: boolean;
-}
-
-export function Logger({ open }: LoggerProps) {
+export function Logger() {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const logIdRef = useRef(0);
   const logsEndRef = useRef<HTMLDivElement>(null);
   const originalConsole = useRef<Console>(null);
   const pendingLogs = useRef<LogEntry[]>([]);
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const isLogger = useRoom237((state) => state.isLogger);
 
   const flushLogs = useCallback(() => {
     if (pendingLogs.current.length > 0) {
@@ -43,7 +41,7 @@ export function Logger({ open }: LoggerProps) {
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!isLogger) return;
     originalConsole.current = {
       log: console.log,
       warn: console.warn,
@@ -93,7 +91,7 @@ export function Logger({ open }: LoggerProps) {
         console.info = originalConsole.current.info;
       }
     };
-  }, [debouncedAddLog, flushLogs, open]);
+  }, [debouncedAddLog, flushLogs, isLogger]);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -114,7 +112,7 @@ export function Logger({ open }: LoggerProps) {
 
   return (
     <AnimatePresence>
-      {open && (
+      {isLogger && (
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}

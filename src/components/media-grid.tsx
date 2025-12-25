@@ -1,54 +1,59 @@
 "use client";
 
 import { MediaItem } from "@/components/media-item";
-import { useGallery } from "@/lib/context/gallery-context";
+import { FAVORITES_ALBUM_ID, MAX_COLS } from "@/lib/consts";
+import { useActiveAlbum } from "@/lib/hooks/use-albums";
+import { useUpload } from "@/lib/hooks/use-upload";
+import { useSortedMedia } from "@/lib/hooks/use-sorted-media";
+import { useRoom237 } from "@/lib/stores";
 import { cn } from "@/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useMemo, useState } from "react";
-
-const MAX_COLS = 12;
+import { isEqual } from "lodash";
+import { useCallback, useEffect, useMemo } from "react";
+import { useStoreWithEqualityFn } from "zustand/traditional";
+import { FavoritesAlbum } from "./favorites-album";
 
 export default function MediaGrid({
   scrollerRef,
 }: {
   scrollerRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const {
-    media,
-    selection,
-    toggleSelect,
-    viewer,
-    onDragStart,
-    uploadFilesToActive,
-    deleteMedia,
-    columns,
-    layout,
-    loadingAlbum,
-    locked,
-    activeAlbum,
-    albums,
-  } = useGallery();
-
-  const [isUnfocused, setIsUnfocused] = useState(false);
+  const { uploadFilesToActive } = useUpload();
+  const columns = useRoom237((state) => state.columns);
+  const layout = useRoom237((state) => state.layout);
+  const isLoadingAlbum = useRoom237((state) => state.loadingAlbum);
+  const activeAlbum = useActiveAlbum();
+  const { mediaPaths } = useSortedMedia();
+  const isUnfocused = useRoom237((state) => state.isUnfocused);
+  const albumNames = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => Object.keys(state.albums),
+    isEqual,
+  );
+  const activeAlbumIsFavorites = useMemo(() => {
+    if (!activeAlbum) return false;
+    return activeAlbum.path === FAVORITES_ALBUM_ID;
+  }, [activeAlbum]);
 
   const mediaRows = useMemo(() => {
     if (layout === "default") {
-      return Array.from({ length: Math.ceil(media.length / columns) }, (_, i) =>
-        media.slice(i * columns, i * columns + columns),
+      return Array.from(
+        { length: Math.ceil(mediaPaths.length / columns) },
+        (_, i) => mediaPaths.slice(i * columns, i * columns + columns),
       );
     }
     if (layout === "masonry") {
-      // Masonry will use different virtualizer
+      // ? Masonry will use different virtualizer
       return [];
     }
     if (layout === "apple") {
-      return Array.from({ length: Math.ceil(media.length / columns) }, (_, i) =>
-        media.slice(i * columns, i * columns + columns),
+      return Array.from(
+        { length: Math.ceil(mediaPaths.length / columns) },
+        (_, i) => mediaPaths.slice(i * columns, i * columns + columns),
       );
     }
     return [];
-  }, [media, columns, layout]);
+  }, [mediaPaths, columns, layout]);
 
   const rowVirtualizerGrid = useVirtualizer({
     count: mediaRows.length,
@@ -58,23 +63,26 @@ export default function MediaGrid({
   });
 
   const rowVirtualizerMasonry = useVirtualizer({
-    count: media.length,
+    count: mediaPaths.length,
     getScrollElement: () => scrollerRef.current,
     estimateSize: () => 100,
     overscan: 3,
     lanes: columns,
   });
 
-  const drop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    if (e.dataTransfer?.files?.length)
-      void uploadFilesToActive(e.dataTransfer.files);
-  };
+  const drop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      if (e.dataTransfer?.files?.length)
+        void uploadFilesToActive(e.dataTransfer.files);
+    },
+    [uploadFilesToActive],
+  );
 
-  const over = (e: React.DragEvent<HTMLDivElement>) => {
+  const over = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "copy";
-  };
+  }, []);
 
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
@@ -89,21 +97,10 @@ export default function MediaGrid({
     };
   }, [uploadFilesToActive]);
 
-  useEffect(() => {
-    const window = getCurrentWindow();
-    const unlistenBlur = window.listen("tauri://blur", () => {
-      setIsUnfocused(true);
-    });
-    const unlistenFocus = window.listen("tauri://focus", () => {
-      setIsUnfocused(false);
-    });
-    return () => {
-      void unlistenBlur.then((f) => f());
-      void unlistenFocus.then((f) => f());
-    };
-  });
+  const rootDir = useRoom237((state) => state.rootDir);
+  const mediaCount = mediaPaths.length;
 
-  if (!activeAlbum && albums.length > 0) {
+  if (!activeAlbum && albumNames.length > 0 && rootDir) {
     return (
       <div className="flex h-[90vh] items-center justify-center">
         <div className="text-muted-foreground">Select an album to view</div>
@@ -111,7 +108,21 @@ export default function MediaGrid({
     );
   }
 
-  if (loadingAlbum) {
+  if (
+    activeAlbum &&
+    !isLoadingAlbum &&
+    activeAlbum.isLoaded &&
+    mediaCount === 0 &&
+    albumNames.length > 0
+  ) {
+    return (
+      <div className="flex h-[90vh] items-center justify-center">
+        <div className="text-muted-foreground">This album is empty</div>
+      </div>
+    );
+  }
+
+  if (isLoadingAlbum !== null) {
     if (layout === "default")
       return (
         <div
@@ -190,6 +201,10 @@ export default function MediaGrid({
       );
   }
 
+  if (activeAlbumIsFavorites) {
+    return <FavoritesAlbum drop={drop} over={over} />;
+  }
+
   return (
     <div
       className={cn(
@@ -216,19 +231,12 @@ export default function MediaGrid({
               paddingTop: `${(1 - columns / MAX_COLS) * 0.5 + 0.5}rem`,
             }}
           >
-            {mediaRows[virtualRow.index]!.map((item, j) => (
+            {mediaRows[virtualRow.index]!.map((item) => (
               <MediaItem
-                key={item.url}
-                item={item}
-                selected={selection.has(item)}
-                onSelectToggle={toggleSelect}
-                onDragStart={onDragStart}
-                onView={() => viewer.open(virtualRow.index * columns + j)}
-                onRequestDelete={deleteMedia}
-                locked={locked}
+                key={item}
+                mediaPath={item}
                 className="m-0 aspect-square w-full object-cover"
                 imgClassName="w-full object-cover aspect-square"
-                showExtras={columns < 10}
                 style={{
                   borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
                   fontSize: `${(1 - columns / MAX_COLS) * 4 + 8}px`,
@@ -252,20 +260,13 @@ export default function MediaGrid({
             className="absolute top-0"
           >
             <MediaItem
+              mediaPath={mediaPaths[virtualRow.index]!}
+              className="m-0 w-full object-cover"
+              imgClassName="w-full object-cover"
               style={{
                 borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
                 fontSize: `${(1 - columns / MAX_COLS) * 4 + 8}px`,
               }}
-              item={media[virtualRow.index]!}
-              selected={selection.has(media[virtualRow.index]!)}
-              onSelectToggle={toggleSelect}
-              onDragStart={onDragStart}
-              onView={() => viewer.open(virtualRow.index)}
-              onRequestDelete={deleteMedia}
-              locked={locked}
-              className="m-0 w-full object-cover"
-              imgClassName="w-full object-cover"
-              showExtras={columns < 10}
             />
           </div>
         ))}
@@ -283,21 +284,14 @@ export default function MediaGrid({
               paddingTop: `${(1 - columns / MAX_COLS) * 0.5 + 0.5}rem`,
             }}
           >
-            {mediaRows[virtualRow.index]!.map((item, j) => (
+            {mediaRows[virtualRow.index]!.map((item) => (
               <div
-                key={item.url}
+                key={item}
                 className="flex w-full items-center justify-center"
               >
                 <MediaItem
-                  item={item}
-                  selected={selection.has(item)}
-                  onSelectToggle={toggleSelect}
-                  onDragStart={onDragStart}
-                  onView={() => viewer.open(virtualRow.index * columns + j)}
-                  onRequestDelete={deleteMedia}
-                  locked={locked}
+                  mediaPath={item}
                   className="m-0"
-                  showExtras={columns < 10}
                   style={{
                     borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
                     fontSize: `${(1 - columns / MAX_COLS) * 4 + 8}px`,

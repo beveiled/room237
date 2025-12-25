@@ -1,10 +1,16 @@
-import { useGallery } from "@/lib/context/gallery-context";
 import { Button } from "@/components/ui/button";
-import { Player } from "@lottiefiles/react-lottie-player";
 import path from "path";
+import { LottiePlayer } from "@/lib/lottie";
+import { useRoom237 } from "@/lib/stores";
+import { useRootDir } from "@/lib/hooks/use-root-dir";
 
 export default function ConfirmOpen() {
-  const { rootDir, setAllowOpen, pickDirectory, decoy, setRoot } = useGallery();
+  const rootDir = useRoom237((state) => state.rootDir);
+  const setAllowOpen = useRoom237((state) => state.setAllowOpen);
+  const setRootDir = useRoom237((state) => state.setRootDir);
+  const decoyRoot = useRoom237((state) => state.decoyRoot);
+  const setDisplayDecoy = useRoom237((state) => state.setDisplayDecoy);
+  const { pickDirectory } = useRootDir();
 
   if (!rootDir) return null;
 
@@ -12,10 +18,10 @@ export default function ConfirmOpen() {
     <>
       <div className="h-8 w-full" data-tauri-drag-region></div>
       <div className="absolute top-0 right-0 bottom-0 left-0 m-auto flex max-w-sm flex-col items-center justify-center pb-8 text-center">
-        <Player
+        <LottiePlayer
           src="/lottie/confirm_open.json"
           background="transparent"
-          className="size-26"
+          className="size-26 invert"
           loop
           autoplay
         />
@@ -27,9 +33,9 @@ export default function ConfirmOpen() {
         <div className="flex items-center gap-2">
           <Button
             onClick={() => {
-              if (decoy.decoyRoot) {
-                setRoot(decoy.decoyRoot);
-                decoy.setDisplayDecoy(true);
+              if (decoyRoot) {
+                setRootDir(decoyRoot);
+                setDisplayDecoy(true);
               }
               setAllowOpen(true);
             }}

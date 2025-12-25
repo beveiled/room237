@@ -10,6 +10,10 @@ use crate::{
     util::{has_extension, heic_to_jpeg},
 };
 
+fn is_album_dir(path: &PathBuf) -> bool {
+    path.is_dir()
+}
+
 #[tauri::command]
 pub async fn rebuild_thumbnails(root_dir: String) -> Result<u64, String> {
     let root = PathBuf::from(&root_dir);
@@ -85,4 +89,77 @@ pub async fn rebuild_metadata(app: AppHandle<Wry>, root_dir: String) -> Result<u
     }
 
     Ok(written)
+}
+
+#[tauri::command]
+pub fn reset_duplicates(root_dir: String) -> Result<u64, String> {
+    let root = PathBuf::from(&root_dir);
+    if !root.is_dir() {
+        return Err(format!("{} is not a directory", root.display()));
+    }
+
+    let mut removed = 0_u64;
+
+    for album in fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let album = album.map_err(|e| e.to_string())?.path();
+        if !is_album_dir(&album) {
+            continue;
+        }
+        let ignore_file = album
+            .join(".room237-meta")
+            .join("duplicates-ignore.json");
+        if ignore_file.exists() {
+            if let Err(e) = fs::remove_file(&ignore_file) {
+                log::warn!("failed to remove {}: {}", ignore_file.display(), e);
+            } else {
+                removed += 1;
+            }
+        }
+    }
+
+    Ok(removed)
+}
+
+#[tauri::command]
+pub fn clear_room237_artifacts(root_dir: String) -> Result<u64, String> {
+    let root = PathBuf::from(&root_dir);
+    if !root.is_dir() {
+        return Err(format!("{} is not a directory", root.display()));
+    }
+
+    let mut cleared = 0_u64;
+
+    for dir in fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let dir = dir.map_err(|e| e.to_string())?.path();
+        if !is_album_dir(&dir) {
+            continue;
+        }
+
+        let meta_dir = dir.join(".room237-meta");
+        if meta_dir.exists() {
+            if let Err(e) = fs::remove_dir_all(&meta_dir) {
+                log::warn!("failed to remove {}: {}", meta_dir.display(), e);
+            } else {
+                cleared += 1;
+            }
+        }
+
+        let thumb_dir = dir.join(".room237-thumb");
+        if thumb_dir.exists() {
+            if let Err(e) = fs::remove_dir_all(&thumb_dir) {
+                log::warn!("failed to remove {}: {}", thumb_dir.display(), e);
+            } else {
+                cleared += 1;
+            }
+        }
+    }
+
+    for extra in [".room237-meta", ".room237-thumb"] {
+        let path = root.join(extra);
+        if path.exists() {
+            let _ = fs::remove_dir_all(&path);
+        }
+    }
+
+    Ok(cleared)
 }

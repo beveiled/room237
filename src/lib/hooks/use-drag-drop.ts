@@ -1,21 +1,30 @@
 "use client";
 
-import { useRef } from "react";
 import type { MediaEntry } from "@/lib/types";
 import { createStackPreview, animateFly } from "../utils";
+import { useRoom237 } from "../stores";
+import { isEqual } from "lodash";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
-export function useDragDrop(selection: Set<MediaEntry>) {
-  const dragRef = useRef<{ medias: MediaEntry[] } | null>(null);
+export function useDragDrop() {
+  const selection = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => state.selection,
+    isEqual,
+  );
+  const setDraggedItems = useRoom237((state) => state.setDraggedItems);
+  const clearDraggedItems = useRoom237((state) => state.clearDraggedItems);
+
   const onDragStart = (
     e: MouseEvent | TouchEvent | PointerEvent | React.DragEvent<Element>,
     media: MediaEntry,
   ) => {
-    if (!selection.has(media) && selection.size > 0) {
+    if (!selection.includes(media) && selection.length > 0) {
       e.preventDefault();
       return;
     }
-    const medias = selection.has(media) ? Array.from(selection) : [media];
-    dragRef.current = { medias: medias };
+    const medias = selection.includes(media) ? Array.from(selection) : [media];
+    setDraggedItems(medias);
     const sp = createStackPreview(medias);
     sp.style.position = "absolute";
     sp.style.top = "-9999px";
@@ -32,7 +41,7 @@ export function useDragDrop(selection: Set<MediaEntry>) {
     );
     animateFly(medias, rects, e.clientX, e.clientY);
   };
-  const getDragged = () => dragRef.current?.medias ?? [];
-  const clear = () => (dragRef.current = null);
+  const getDragged = () => useRoom237.getState().draggedItems;
+  const clear = () => clearDraggedItems();
   return { onDragStart, getDragged, clear };
 }

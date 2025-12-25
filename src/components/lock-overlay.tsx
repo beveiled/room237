@@ -1,9 +1,12 @@
 "use client";
 
+import { LottiePlayer } from "@/lib/lottie";
+import { useRoom237 } from "@/lib/stores";
 import { AnimatePresence, motion } from "framer-motion";
-import { Player } from "@lottiefiles/react-lottie-player";
 
-export function LockOverlay({ locked }: { locked: boolean }) {
+export function LockOverlay() {
+  const locked = useRoom237((state) => state.locked);
+
   return (
     <AnimatePresence>
       {locked && (
@@ -19,10 +22,10 @@ export function LockOverlay({ locked }: { locked: boolean }) {
             exit={{ opacity: 0, transition: { duration: 0.3 } }}
             className="bg-background/80 fixed inset-0 z-[9997] flex flex-col items-center justify-center rounded-3xl pb-6 backdrop-blur-lg"
           >
-            <Player
+            <LottiePlayer
               src="/lottie/lockscreen.json"
               background="transparent"
-              className="size-26"
+              className="size-26 invert"
               loop
               autoplay
             />

@@ -4,6 +4,8 @@ import type { FileMeta, MediaEntry } from "./types";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import path from "path";
 import { type DetachedMediaEntry } from "./types";
+import { readFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
 
 export const cn = (...i: ClassValue[]) => twMerge(clsx(i));
 
@@ -178,6 +180,7 @@ export function unpackFileMeta(packed: string): FileMeta {
 export function attachMediaEntry(
   albumPath: string,
   entry: DetachedMediaEntry,
+  albumName?: string,
 ): MediaEntry {
   return {
     url: convertFileSrc(path.join(albumPath, entry.name)),
@@ -187,5 +190,49 @@ export function attachMediaEntry(
     meta: unpackFileMeta(entry.meta),
     name: entry.name,
     path: path.join(albumPath, entry.name),
+    favorite: entry.favorite,
+    albumPath,
+    albumName: albumName ?? path.basename(albumPath),
   } satisfies MediaEntry;
 }
+
+export const copyFile = async (item: MediaEntry): Promise<Blob> => {
+  if (!item) throw new Error("No item selected");
+  if (item.name.toLowerCase().endsWith(".png")) {
+    const file = await readFile(item.path);
+    if (!file) {
+      toast.error("Failed to read image file.");
+      throw new Error("Failed to read image file.");
+    }
+    const blob = new Blob([file.buffer], {
+      type: "image/png",
+    });
+    // BUG: Async Clipboard API on Webkit (Safari) raises NotAllowed if the blob is passed instead of a Promise
+    // Thus, it is more logical to send a toast here (when the file is actually loaded), since
+    // it is the closest we can get to the actual state of success.
+    toast.success("Image copied to clipboard!");
+    return blob;
+  }
+  if (!isImage(item.name)) {
+    throw new Error("Failed to read image file.");
+  }
+
+  const file = await readFile(item.path);
+  if (!file) {
+    toast.error("Failed to read image file.");
+    throw new Error("Failed to read image file.");
+  }
+
+  const blob = new Blob([file.buffer]);
+  const imageBitmap = await createImageBitmap(blob);
+
+  const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Failed to read image file.");
+  }
+  ctx.drawImage(imageBitmap, 0, 0);
+  const pngBlob = await canvas.convertToBlob({ type: "image/png" });
+  toast.success("Image copied to clipboard!");
+  return pngBlob;
+};

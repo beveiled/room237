@@ -1,18 +1,20 @@
-import { useGallery } from "@/lib/context/gallery-context";
 import { Button } from "@/components/ui/button";
-import { Player } from "@lottiefiles/react-lottie-player";
+import { LottiePlayer } from "@/lib/lottie";
+import { useRootDir } from "@/lib/hooks/use-root-dir";
+import { useRoom237 } from "@/lib/stores";
 
 export default function DirectoryPicker() {
-  const { rootDir, pickDirectory } = useGallery();
+  const { pickDirectory } = useRootDir();
+  const rootDir = useRoom237((state) => state.rootDir);
   if (rootDir) return null;
   return (
     <>
       <div className="h-8 w-full" data-tauri-drag-region></div>
       <div className="absolute top-0 right-0 bottom-0 left-0 m-auto flex max-w-sm flex-col items-center justify-center pb-8 text-center">
-        <Player
+        <LottiePlayer
           src="/lottie/choose_root.json"
           background="transparent"
-          className="size-26"
+          className="size-26 invert"
           loop
           autoplay
         />

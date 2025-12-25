@@ -2,24 +2,33 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Button } from "./ui/button";
 import { SendToBack, Trash2, X } from "lucide-react";
-import { useGallery } from "@/lib/context/gallery-context";
 import { useState } from "react";
+import { FAVORITES_ALBUM_ID } from "@/lib/consts";
+import { useRoom237 } from "@/lib/stores";
+import { useUpload } from "@/lib/hooks/use-upload";
+import { isEqual } from "lodash";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 
 export function SelectionMenu() {
-  const {
-    selection,
-    albums,
-    clearSelection,
-    activeAlbum,
-    deleteMedias,
-    moveSelectedToAlbum,
-  } = useGallery();
+  const selection = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => state.selection,
+    isEqual,
+  );
+  const albumNames = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => Object.keys(state.albums),
+    isEqual,
+  );
+  const clearSelection = useRoom237((state) => state.clearSelection);
+  const activeAlbumName = useRoom237((state) => state.activeAlbumName);
+  const { deleteMedias, moveSelectedToAlbum } = useUpload();
 
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   return (
     <AnimatePresence>
-      {selection.size > 0 && (
+      {selection.length > 0 && (
         <motion.div
           key="multi-action-bar"
           initial={{ opacity: 0, scale: 0.6, y: -10 }}
@@ -39,12 +48,12 @@ export function SelectionMenu() {
                 className="justify-start text-red-500 hover:bg-red-500/30"
                 onClick={() => setDeleteConfirmOpen(true)}
               >
-                <Trash2 className="h-4 w-4" /> Delete ({selection.size})
+                <Trash2 className="h-4 w-4" /> Delete ({selection.length})
               </Button>
             </PopoverTrigger>
             <PopoverContent className="mr-8 w-64">
               <p className="mb-2 text-sm">
-                Delete {selection.size} selected items?
+                Delete {selection.length} selected items?
               </p>
               <Button
                 variant="destructive"
@@ -55,7 +64,7 @@ export function SelectionMenu() {
                   setDeleteConfirmOpen(false);
                 }}
               >
-                Delete ({selection.size})
+                Delete ({selection.length})
               </Button>
               <Button
                 variant="secondary"
@@ -76,16 +85,18 @@ export function SelectionMenu() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="max-h-64 w-48 space-y-1 overflow-y-auto">
-              {albums
-                .filter((a) => a !== activeAlbum)
+              {albumNames
+                .filter(
+                  (a) => a !== activeAlbumName && a !== FAVORITES_ALBUM_ID,
+                )
                 .map((a) => (
                   <Button
-                    key={a.name}
+                    key={a}
                     variant="ghost"
                     className="w-full justify-start hover:bg-black/15"
                     onClick={() => moveSelectedToAlbum(a)}
                   >
-                    {a.name}
+                    {a}
                   </Button>
                 ))}
             </PopoverContent>

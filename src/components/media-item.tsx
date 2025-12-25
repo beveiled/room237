@@ -1,104 +1,85 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import type { MediaEntry } from "@/lib/types";
-import { cn, isImage, isVideo } from "@/lib/utils";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { useDragDrop } from "@/lib/hooks/use-drag-drop";
+import { useMediaItem } from "@/lib/hooks/use-media-item";
+import { useUpload } from "@/lib/hooks/use-upload";
+import { useViewer } from "@/lib/hooks/use-viewer";
+import { useRoom237 } from "@/lib/stores";
+import { cn, copyFile, isImage, isVideo } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { ClipboardCopy, Loader2, Play, Trash, X } from "lucide-react";
+import { isEqual } from "lodash";
+import { ClipboardCopy, Heart, Loader2, Play, Trash, X } from "lucide-react";
 import {
+  useCallback,
   useState,
-  type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { toast } from "sonner";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 import { Button } from "./ui/button";
 
-interface Props {
-  item: MediaEntry;
-  selected: boolean;
-  onSelectToggle: (i: MediaEntry, add: boolean) => void;
-  onDragStart: (
-    e: MouseEvent | TouchEvent | PointerEvent | ReactDragEvent,
-    i: MediaEntry,
-  ) => void;
-  onView: () => void;
-  onRequestDelete: (i: MediaEntry) => void;
-  locked: boolean;
-  className?: string;
-  imgClassName?: string;
-  showExtras?: boolean;
-  style?: React.CSSProperties;
-}
-
-export const MediaItem: React.FC<Props> = ({
-  item,
-  selected,
-  onSelectToggle,
-  onDragStart,
-  onView,
-  onRequestDelete,
-  locked,
+export const MediaItem = ({
+  mediaPath,
   className,
   imgClassName,
-  showExtras = true,
   style,
+}: {
+  mediaPath: string;
+  className?: string;
+  imgClassName?: string;
+  style?: React.CSSProperties;
 }) => {
   const [confirm, setConfirm] = useState(false);
   const [copying, setCopying] = useState(false);
+  const item = useMediaItem(mediaPath);
 
-  const click = (e: ReactMouseEvent<HTMLDivElement>) => {
-    const add = e.metaKey || e.ctrlKey;
-    if (add) {
-      e.preventDefault();
-      onSelectToggle(item, true);
-      return;
-    }
-    onView();
-  };
+  const selected = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => item && state.selection.includes(item),
+    isEqual,
+  );
+  const locked = useRoom237((state) => state.locked);
+  const onSelectToggle = useRoom237((state) => state.toggleSelection);
+  const showExtras = useRoom237((state) => state.columns < 10);
 
-  const copyFile = async (): Promise<Blob> => {
-    if (item.name.toLowerCase().endsWith(".png")) {
-      const file = await readFile(item.path);
-      if (!file) {
-        toast.error("Failed to read image file.");
-        throw new Error("Failed to read image file.");
+  const itemIndex = item?.index ?? 0;
+
+  const { deleteMedia: onRequestDelete, toggleFavorite: onToggleFavorite } =
+    useUpload();
+
+  const viewer = useViewer();
+
+  const onView = useCallback(() => {
+    viewer.open(itemIndex);
+  }, [viewer, itemIndex]);
+
+  const { onDragStart } = useDragDrop();
+
+  const click = useCallback(
+    (e: ReactMouseEvent<HTMLDivElement>) => {
+      if (!item) return;
+      const add = e.metaKey || e.ctrlKey;
+      if (add) {
+        e.preventDefault();
+        onSelectToggle(item, true);
+        return;
       }
-      const blob = new Blob([file], { type: "image/png" });
-      toast.success("Image copied to clipboard!");
-      return blob;
-    }
-    if (!isImage(item.name)) {
-      throw new Error("Failed to read image file.");
-    }
+      onView();
+    },
+    [item, onView, onSelectToggle],
+  );
 
-    const file = await readFile(item.path);
-    if (!file) {
-      toast.error("Failed to read image file.");
-      throw new Error("Failed to read image file.");
-    }
+  if (!item) return null;
 
-    const blob = new Blob([file]);
-    const imageBitmap = await createImageBitmap(blob);
-
-    const canvas = new OffscreenCanvas(imageBitmap.width, imageBitmap.height);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      throw new Error("Failed to read image file.");
-    }
-    ctx.drawImage(imageBitmap, 0, 0);
-    const pngBlob = await canvas.convertToBlob({ type: "image/png" });
-    toast.success("Image copied to clipboard!");
-    return pngBlob;
-  };
+  const mediaItem = item;
 
   let dateTimestamp;
-  if (item.meta.shoot) dateTimestamp = item.meta.shoot * 1000;
-  else if (item.meta.added) dateTimestamp = item.meta.added * 1000;
+  if (mediaItem.meta.shoot) dateTimestamp = mediaItem.meta.shoot * 1000;
+  else if (mediaItem.meta.added) dateTimestamp = mediaItem.meta.added * 1000;
 
   return (
     <motion.div
-      data-img-url={item.name}
+      data-img-url={mediaItem.name}
       initial={{ opacity: 0 }}
       animate={selected ? { scale: 1.01, opacity: 1 } : { opacity: 1 }}
       exit={{ opacity: 0, y: -300, transition: { duration: 0.15 } }}
@@ -112,7 +93,7 @@ export const MediaItem: React.FC<Props> = ({
         locked && "blur-lg",
       )}
       draggable
-      onDragStart={(e) => onDragStart(e, item)}
+      onDragStart={(e) => onDragStart(e, mediaItem)}
       style={style}
     >
       <div
@@ -131,11 +112,11 @@ export const MediaItem: React.FC<Props> = ({
         </div>
       </div>
 
-      {isVideo(item.name) ? (
+      {isVideo(mediaItem.name) ? (
         <>
           <img
-            src={item.thumb}
-            alt={item.name}
+            src={mediaItem.thumb}
+            alt={mediaItem.name}
             className={cn(
               "block w-full cursor-pointer select-none",
               imgClassName,
@@ -145,8 +126,8 @@ export const MediaItem: React.FC<Props> = ({
         </>
       ) : (
         <img
-          src={item.thumb}
-          alt={item.name}
+          src={mediaItem.thumb}
+          alt={mediaItem.name}
           className={cn(
             "block w-full cursor-pointer select-none",
             imgClassName,
@@ -167,6 +148,27 @@ export const MediaItem: React.FC<Props> = ({
         />
       )}
 
+      <motion.button
+        whileHover={{ scale: 1.1 }}
+        whileTap={{ scale: 0.9 }}
+        transition={{ type: "spring", stiffness: 500, damping: 25 }}
+        className={cn(
+          "group-hover:bg-background/70 absolute top-1 right-1 z-30 flex h-6 w-6 items-center justify-center rounded-md transition-[background-color,opacity,backdrop-filter] duration-150 group-hover:backdrop-blur-sm",
+          mediaItem.favorite && "text-red-500",
+          !mediaItem.favorite && "opacity-0 group-hover:opacity-100",
+        )}
+        onClick={(e) => {
+          e.stopPropagation();
+          void onToggleFavorite(mediaItem);
+        }}
+        onPointerDownCapture={(e) => e.stopPropagation()}
+      >
+        <Heart
+          className="h-3.5 w-3.5 transition-colors duration-150"
+          fill={mediaItem.favorite ? "currentColor" : "none"}
+        />
+      </motion.button>
+
       <div className="pointer-events-none absolute bottom-0 flex w-full items-end justify-end p-2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
         <div className="pointer-events-auto z-30 flex gap-1">
           <motion.button
@@ -182,7 +184,7 @@ export const MediaItem: React.FC<Props> = ({
           >
             <Trash className="h-4 w-4" />
           </motion.button>
-          {isImage(item.name) && showExtras && (
+          {isImage(mediaItem.name) && showExtras && (
             <motion.button
               whileHover={copying ? {} : { scale: 1.1 }}
               whileTap={copying ? {} : { scale: 0.9 }}
@@ -193,7 +195,7 @@ export const MediaItem: React.FC<Props> = ({
                 setCopying(true);
                 try {
                   await navigator.clipboard.write([
-                    new ClipboardItem({ "image/png": copyFile() }),
+                    new ClipboardItem({ "image/png": copyFile(mediaItem) }),
                   ]);
                 } finally {
                   setCopying(false);
@@ -223,7 +225,7 @@ export const MediaItem: React.FC<Props> = ({
             <div className="flex gap-1">
               <Button
                 size="sm"
-                onClick={() => onRequestDelete(item)}
+                onClick={() => onRequestDelete(mediaItem)}
                 variant="destructive"
               >
                 <Trash className="text-red-500" />

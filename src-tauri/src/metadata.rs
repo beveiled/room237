@@ -1,8 +1,13 @@
-use std::{fs::File, io::BufReader, path::Path, process::Command};
+use std::{
+    fs::{self, File},
+    io::BufReader,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use exif::{Field, In, Reader, Tag, Value};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Wry};
@@ -54,6 +59,7 @@ impl DetachedFileMeta {
 pub struct DetachedMediaEntry {
     pub meta: String,
     pub name: String,
+    pub favorite: bool,
 }
 
 #[derive(Serialize)]
@@ -65,10 +71,57 @@ pub struct DetachedAlbum {
 }
 
 fn store_name_for_path(p: &Path) -> Option<String> {
-    let name = p.file_name()?.to_str()?;
+    let name = p.to_string_lossy();
     let mut hasher = Sha256::new();
     hasher.update(name.as_bytes());
     Some(format!("{}.json", hex::encode(hasher.finalize())))
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct StoredMetadata {
+    pub meta: String,
+    #[serde(default)]
+    pub favorite: bool,
+}
+
+fn meta_file_path(p: &Path) -> Option<PathBuf> {
+    let mut name = p.file_name()?.to_os_string();
+    name.push(".meta");
+    Some(p.parent()?.join(".room237-meta").join(name))
+}
+
+fn read_stored_metadata(p: &Path) -> Option<StoredMetadata> {
+    let meta_path = meta_file_path(p)?;
+    let data = fs::read_to_string(meta_path).ok()?;
+    serde_json::from_str::<StoredMetadata>(&data).ok()
+}
+
+fn write_stored_metadata(p: &Path, data: &StoredMetadata) -> Result<(), String> {
+    let meta_path = meta_file_path(p).ok_or("Invalid path".to_string())?;
+    if let Some(parent) = meta_path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let data = serde_json::to_string(data).map_err(|e| e.to_string())?;
+    fs::write(meta_path, data).map_err(|e| e.to_string())
+}
+
+pub fn get_metadata_with_favorite(
+    app: AppHandle<Wry>,
+    path: &Path,
+) -> Result<StoredMetadata, String> {
+    if let Some(mut stored) = read_stored_metadata(path) {
+        if stored.meta.is_empty() {
+            stored.meta = get_file_metadata(app, &path.to_string_lossy())?;
+            let _ = write_stored_metadata(path, &stored);
+        }
+        return Ok(stored);
+    }
+
+    let meta = get_file_metadata(app, &path.to_string_lossy())?;
+    Ok(StoredMetadata {
+        meta,
+        favorite: false,
+    })
 }
 
 pub fn datetime_original(p: &Path) -> Option<u64> {
@@ -167,6 +220,12 @@ pub fn get_file_metadata(app: AppHandle<Wry>, path: &str) -> Result<String, Stri
         h: height,
     };
     let packed = meta.pack();
+    let favorite = read_stored_metadata(p).map(|m| m.favorite).unwrap_or(false);
+    let stored = StoredMetadata {
+        meta: packed.clone(),
+        favorite,
+    };
+    let _ = write_stored_metadata(p, &stored);
     if let Some(store_name) = store_name_for_path(p) {
         let store = app.store(&store_name).map_err(|e| e.to_string())?;
         store.set("meta", JsonValue::String(packed.clone()));
@@ -179,8 +238,38 @@ pub fn get_file_metadata_cached(app: AppHandle<Wry>, path: &Path) -> Result<Stri
     if let Some(store_name) = store_name_for_path(path) {
         let store = app.store(&store_name).map_err(|e| e.to_string())?;
         if let Some(JsonValue::String(s)) = store.get("meta") {
+            let _ = write_stored_metadata(path, &StoredMetadata {
+                meta: s.clone(),
+                favorite: read_stored_metadata(path).map(|m| m.favorite).unwrap_or(false),
+            });
             return Ok(s);
         }
     }
-    get_file_metadata(app, &path.to_string_lossy())
+    get_metadata_with_favorite(app, path).map(|m| m.meta)
+}
+
+#[tauri::command]
+pub fn set_media_favorite(
+    app: AppHandle<Wry>,
+    path: String,
+    favorite: bool,
+) -> Result<DetachedMediaEntry, String> {
+    let p = Path::new(&path);
+    if !p.exists() {
+        return Err(format!("{} does not exist", path));
+    }
+
+    let mut metadata = get_metadata_with_favorite(app, p)?;
+    metadata.favorite = favorite;
+    write_stored_metadata(p, &metadata)?;
+
+    Ok(DetachedMediaEntry {
+        meta: metadata.meta,
+        name: p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or_default()
+            .to_string(),
+        favorite,
+    })
 }

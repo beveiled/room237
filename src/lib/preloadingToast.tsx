@@ -1,7 +1,7 @@
-import { Player } from "@lottiefiles/react-lottie-player";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
+import { LottiePlayer } from "./lottie";
 
 let preloadingToastId: string | number | null = null;
 
@@ -27,11 +27,11 @@ export const showPreloadingToast = (): Promise<void> => {
           preloadingToastId = toast(
             <div className="relative w-full pb-4">
               <div className="flex w-full items-center gap-2">
-                <Player
+                <LottiePlayer
                   src="/lottie/preloading.json"
                   autoplay
                   loop
-                  className="size-8"
+                  className="size-8 invert"
                 />
                 <div>
                   <div data-title="">Uploading your data to FBI servers...</div>

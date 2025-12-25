@@ -10,11 +10,12 @@ mod thumb;
 mod util;
 
 pub use album::{
-    get_album_media, get_album_size, get_albums_detached, move_media, register_new_media,
+    get_album_media, get_album_size, get_albums_detached, list_favorites, move_media,
+    register_new_media,
 };
-pub use debugging::{rebuild_metadata, rebuild_thumbnails};
-pub use duplicates::find_duplicates;
-pub use metadata::get_file_metadata;
+pub use debugging::{clear_room237_artifacts, rebuild_metadata, rebuild_thumbnails, reset_duplicates};
+pub use duplicates::{find_duplicates, mark_non_duplicates};
+pub use metadata::{get_file_metadata, set_media_favorite};
 pub use preload::{is_preloading, lock_until_preloaded};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -34,6 +35,11 @@ pub fn run() {
             rebuild_metadata,
             register_new_media,
             find_duplicates,
+            mark_non_duplicates,
+            reset_duplicates,
+            clear_room237_artifacts,
+            set_media_favorite,
+            list_favorites,
         ])
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

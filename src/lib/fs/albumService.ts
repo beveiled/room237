@@ -1,4 +1,4 @@
-import type { MediaEntry } from "@/lib/types";
+import type { FavoriteDetachedMediaEntry, MediaEntry } from "@/lib/types";
 import { invoke } from "@tauri-apps/api/core";
 import path from "path";
 import { exists, mkdir, remove } from "@tauri-apps/plugin-fs";
@@ -20,11 +20,29 @@ export async function registerNewMedia(
   return attachMediaEntry(dir, dMediaEntry);
 }
 
-export async function listAlbums(rootDir: string): Promise<Album[]> {
+export async function setMediaFavorite(
+  mediaPath: string,
+  favorite: boolean,
+): Promise<boolean> {
+  await invoke("set_media_favorite", { path: mediaPath, favorite });
+  return favorite;
+}
+
+export async function listFavorites(
+  rootDir: string,
+): Promise<FavoriteDetachedMediaEntry[]> {
+  return await invoke<FavoriteDetachedMediaEntry[]>("list_favorites", {
+    rootDir,
+  });
+}
+
+export async function listAlbums(
+  rootDir: string,
+): Promise<Record<string, Album>> {
   const rawAlbums = (await invoke("get_albums_detached", {
     rootDir,
   })) satisfies DetachedAlbum[];
-  const albums: Album[] = [];
+  const albums: Record<string, Album> = {};
   for (const raw of rawAlbums) {
     const album = await buildAlbum(
       raw.path,
@@ -32,10 +50,24 @@ export async function listAlbums(rootDir: string): Promise<Album[]> {
       raw.thumb_path,
       raw.size,
     );
-    albums.push(album);
+    albums[raw.name] = album;
   }
-  albums.sort((a, b) => a.name.localeCompare(b.name));
   return albums;
+}
+
+export async function markNonDuplicates(
+  dir: string,
+  files: string[],
+): Promise<void> {
+  await invoke("mark_non_duplicates", { dir, files });
+}
+
+export async function resetDuplicates(rootDir: string): Promise<void> {
+  await invoke("reset_duplicates", { rootDir });
+}
+
+export async function clearRoom237Artifacts(rootDir: string): Promise<void> {
+  await invoke("clear_room237_artifacts", { rootDir });
 }
 
 export async function createAlbum(

@@ -8,11 +8,12 @@ use std::{
 };
 
 use rayon::prelude::*;
+use serde::Serialize;
 use tauri::{AppHandle, Wry};
 
 use crate::{
     constants::{IMAGE_EXTENSIONS, VIDEO_EXTENSIONS},
-    metadata::{get_file_metadata_cached, DetachedAlbum, DetachedMediaEntry},
+    metadata::{get_metadata_with_favorite, DetachedAlbum, DetachedMediaEntry},
     preload::{
         enqueue_preload, preload_dir, start_hash_preloader_worker, start_preloader_worker,
         CURRENT_PRELOAD_CANCEL, PRELOADED, PRELOAD_QUEUE,
@@ -20,6 +21,16 @@ use crate::{
     thumb::ensure_thumb,
     util::{has_extension, heic_to_jpeg},
 };
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FavoriteDetachedMediaEntry {
+    pub meta: String,
+    pub name: String,
+    pub album_path: String,
+    pub album_name: String,
+    pub favorite: bool,
+}
 
 #[tauri::command]
 pub fn get_albums_detached(
@@ -152,10 +163,11 @@ pub async fn get_album_media(
         .filter_map(|path| {
             (|| -> Result<DetachedMediaEntry, String> {
                 ensure_thumb(path, &thumb_dir)?;
-                let meta = get_file_metadata_cached(app.clone(), path)?;
+                let meta = get_metadata_with_favorite(app.clone(), path)?;
                 Ok(DetachedMediaEntry {
-                    meta,
+                    meta: meta.meta,
                     name: path.file_name().unwrap().to_string_lossy().into_owned(),
+                    favorite: meta.favorite,
                 })
             })()
             .map_err(|e| {
@@ -168,6 +180,89 @@ pub async fn get_album_media(
 
     entries.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(entries)
+}
+
+#[tauri::command]
+pub fn list_favorites(
+    app: AppHandle<Wry>,
+    root_dir: String,
+) -> Result<Vec<FavoriteDetachedMediaEntry>, String> {
+    let root = PathBuf::from(&root_dir);
+    if !root.is_dir() {
+        return Err(format!("{} is not a directory", root.display()));
+    }
+
+    let mut favorites = Vec::new();
+
+    for entry in fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let album_path = entry.map_err(|e| e.to_string())?.path();
+        if !album_path.is_dir() {
+            continue;
+        }
+
+        let album_name = album_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("Unknown")
+            .to_string();
+
+        let meta_dir = album_path.join(".room237-meta");
+        if !meta_dir.exists() {
+            continue;
+        }
+
+        let thumb_dir = album_path.join(".room237-thumb");
+        let _ = fs::create_dir_all(&thumb_dir);
+
+        for meta_entry in fs::read_dir(&meta_dir).map_err(|e| e.to_string())? {
+            let meta_entry = meta_entry.map_err(|e| e.to_string())?.path();
+            if meta_entry.extension().and_then(|s| s.to_str()) != Some("meta") {
+                continue;
+            }
+
+            let Some(stem) = meta_entry.file_stem().and_then(|s| s.to_str()) else {
+                continue;
+            };
+            let media_path = album_path.join(stem);
+            if !media_path.exists() {
+                continue;
+            }
+
+            let metadata = match get_metadata_with_favorite(app.clone(), &media_path) {
+                Ok(m) => m,
+                Err(e) => {
+                    log::warn!("failed to read favorite metadata {} {}", media_path.display(), e);
+                    continue;
+                }
+            };
+
+            if !metadata.favorite {
+                continue;
+            }
+
+            let _ = ensure_thumb(&media_path, &thumb_dir);
+
+            favorites.push(FavoriteDetachedMediaEntry {
+                meta: metadata.meta,
+                name: media_path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or_default()
+                    .to_string(),
+                album_path: album_path.to_string_lossy().to_string(),
+                album_name: album_name.clone(),
+                favorite: true,
+            });
+        }
+    }
+
+    favorites.sort_by(|a, b| {
+        a.album_name
+            .cmp(&b.album_name)
+            .then(a.name.cmp(&b.name))
+    });
+
+    Ok(favorites)
 }
 
 #[tauri::command]
@@ -258,10 +353,11 @@ pub fn register_new_media(
     let thumb_dir = album_path.join(".room237-thumb");
     fs::create_dir_all(&thumb_dir).map_err(|e| e.to_string())?;
     ensure_thumb(&path, &thumb_dir)?;
-    let meta = get_file_metadata_cached(app, &path)?;
+    let meta = get_metadata_with_favorite(app, &path)?;
     log::info!("registered new media {}", path.display());
     Ok(DetachedMediaEntry {
-        meta,
+        meta: meta.meta,
         name: path.file_name().unwrap().to_string_lossy().into_owned(),
+        favorite: meta.favorite,
     })
 }
