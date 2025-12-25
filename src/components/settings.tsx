@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import {
@@ -5,17 +6,58 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useGallery } from "@/lib/context/gallery-context";
+import { useRootDir } from "@/lib/hooks/use-root-dir";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AnimatePresence, motion } from "framer-motion";
-import { Folder, SettingsIcon, X } from "lucide-react";
+import {
+  Folder,
+  FolderOpen,
+  SettingsIcon,
+  Shield,
+  ShieldOff,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
+import { useRoom237 } from "@/lib/stores";
+import { AdvancedSettingsPopover } from "./advanced-settings";
+import { useI18n, languageOptions } from "@/lib/i18n";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import type { Language } from "@/lib/stores/types";
 
-export function Settings() {
+type SettingsProps = {
+  showRootControls?: boolean;
+  advancedSide?: "left" | "right";
+  advancedAlign?: "start" | "center" | "end";
+};
+
+export function Settings({
+  showRootControls = true,
+  advancedSide = "right",
+  advancedAlign = "start",
+}: SettingsProps) {
   const [isOpen, setOpen] = useState(false);
   const [animate, setAnimate] = useState(false);
-  const { decoy } = useGallery();
+  const { pickDirectory } = useRootDir();
+  const decoyRoot = useRoom237((state) => state.decoyRoot);
+  const setDecoyRoot = useRoom237((state) => state.setDecoyRoot);
+  const contentProtected = useRoom237((state) => state.contentProtected);
+  const setContentProtected = useRoom237((state) => state.setContentProtected);
+  const privacyEnabled = useRoom237((state) => state.privacyEnabled);
+  const effectiveContentProtected = privacyEnabled && contentProtected;
+  const language = useRoom237((state) => state.language);
+  const setLanguage = useRoom237((state) => state.setLanguage);
+  const { t } = useI18n();
+  const flagSrc: Record<Language, string> = {
+    en: "/flags/en.png",
+    ru: "/flags/ru.png",
+  };
 
   return (
     <Popover open={isOpen} onOpenChange={() => null}>
@@ -58,36 +100,120 @@ export function Settings() {
         </Button>
       </PopoverTrigger>
       <PopoverContent>
-        <div className="mb-3 font-medium">Settings</div>
-        <div className="text-muted-foreground mb-1 ml-2 text-xs">
-          Decoy gallery
-        </div>
-        {decoy.decoyRoot && (
-          <div className="text-muted-foreground mb-2 ml-2 flex items-center justify-between">
-            <span className="text-xs">{decoy.decoyRoot}</span>
+        <div className="mb-3 font-medium">{t("settings.title")}</div>
+        {showRootControls && (
+          <>
             <Button
-              variant="ghost"
-              className="size-5 p-0"
+              variant="outline"
+              className="mb-3 w-full"
               onClick={() => {
-                void decoy.setDecoyRoot(null);
+                void pickDirectory();
               }}
             >
-              <X className="size-4" />
+              <FolderOpen className="size-4" />
+              {t("settings.changeRoot")}
             </Button>
+            {privacyEnabled && (
+              <>
+                {decoyRoot && (
+                  <div className="mb-2 flex flex-col gap-1">
+                    <div className="text-muted-foreground text-xs">
+                      {t("settings.decoyGallery")}
+                    </div>
+                    <div className="text-muted-foreground flex items-center justify-between">
+                      <span className="text-xs">{decoyRoot}</span>
+                      <Button
+                        variant="ghost"
+                        className="size-5 p-0"
+                        onClick={() => {
+                          void setDecoyRoot(null);
+                        }}
+                      >
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <Button
+                  variant="outline"
+                  className="mb-4 w-full"
+                  onClick={async () => {
+                    const dir = await open({ directory: true });
+                    if (!dir) return;
+                    void setDecoyRoot(dir);
+                  }}
+                >
+                  <Folder />
+                  {decoyRoot
+                    ? t("settings.changeDecoy")
+                    : t("settings.pickDecoy")}
+                </Button>
+              </>
+            )}
+          </>
+        )}
+        <div className="mb-1 flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            {effectiveContentProtected ? (
+              <Shield className="size-4" />
+            ) : (
+              <ShieldOff className="size-4" />
+            )}
+            <span>{t("settings.preventScreenshots")}</span>
+          </div>
+          <Button
+            variant={effectiveContentProtected ? "default" : "outline"}
+            size="sm"
+            disabled={!privacyEnabled}
+            onClick={() => {
+              setContentProtected(!contentProtected);
+            }}
+            className="h-auto py-1"
+          >
+            {effectiveContentProtected ? t("common.on") : t("common.off")}
+          </Button>
+        </div>
+        {!privacyEnabled && (
+          <div className="text-muted-foreground mt-1 text-xs">
+            {t("settings.screenshotHint")}
           </div>
         )}
-        <Button
-          variant="outline"
-          className="mb-2 w-full"
-          onClick={async () => {
-            const dir = await open({ directory: true });
-            if (!dir) return;
-            void decoy.setDecoyRoot(dir);
-          }}
-        >
-          <Folder />
-          {decoy.decoyRoot ? "Change" : "Pick"} decoy root
-        </Button>
+        <div className="mt-3 space-y-2">
+          <div className="text-sm font-medium">{t("settings.language")}</div>
+          <Select
+            value={language}
+            onValueChange={(value) => setLanguage(value as Language)}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {languageOptions.map((opt) => (
+                <SelectItem key={opt.value} value={opt.value}>
+                  <div className="flex items-center gap-2">
+                    <img
+                      src={flagSrc[opt.value]}
+                      alt={opt.value}
+                      width={18}
+                      height={12}
+                      className="rounded-sm"
+                    />
+                    <span>{t(`language.${opt.value}`)}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <AdvancedSettingsPopover
+          side={advancedSide}
+          align={advancedAlign}
+          trigger={
+            <Button variant="outline" className="mt-3 w-full">
+              {t("settings.advanced")}
+            </Button>
+          }
+        />
       </PopoverContent>
     </Popover>
   );

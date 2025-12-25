@@ -1,87 +1,258 @@
 "use client";
 
 import { MediaItem } from "@/components/media-item";
-import { useGallery } from "@/lib/context/gallery-context";
+import { FAVORITES_ALBUM_ID, MAX_COLS } from "@/lib/consts";
+import { useActiveAlbum } from "@/lib/hooks/use-active-album";
+import { useSortedMedia } from "@/lib/hooks/use-sorted-media";
+import { useUpload } from "@/lib/hooks/use-upload";
+import { isMedia } from "@/lib/utils";
+import { useRoom237 } from "@/lib/stores";
 import { cn } from "@/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { getCurrentWindow } from "@tauri-apps/api/window";
-import { useEffect, useMemo, useState } from "react";
+import { isEqual } from "lodash";
+import { GalleryVerticalEnd, Upload } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useStoreWithEqualityFn } from "zustand/traditional";
+import { FavoritesAlbum } from "./favorites-album";
+import { useDragDrop } from "@/lib/hooks/use-drag-drop";
+import { useI18n } from "@/lib/i18n";
 
-const MAX_COLS = 12;
+const nameForClipboard = (file: File, idx: number) => {
+  const trimmed = file.name?.trim();
+  if (trimmed) return trimmed;
+  const type = file.type || "";
+  const ext = type.startsWith("image/")
+    ? (type.split("/")[1] ?? "png")
+    : type.startsWith("video/")
+      ? (type.split("/")[1] ?? "mp4")
+      : "bin";
+  return `pasted-${idx}.${ext}`;
+};
 
 export default function MediaGrid({
   scrollerRef,
 }: {
   scrollerRef: React.RefObject<HTMLDivElement | null>;
 }) {
-  const {
-    media,
-    selection,
-    toggleSelect,
-    viewer,
-    onDragStart,
-    uploadFilesToActive,
-    deleteMedia,
-    columns,
-    layout,
-    loadingAlbum,
-    locked,
-    activeAlbum,
-    albums,
-  } = useGallery();
-
-  const [isUnfocused, setIsUnfocused] = useState(false);
+  const [scrollEl, setScrollEl] = useState<HTMLDivElement | null>(null);
+  const [scrollSize, setScrollSize] = useState({ width: 0, height: 0 });
+  const { uploadFilesToActive } = useUpload();
+  const columns = useRoom237((state) => state.columns);
+  const layout = useRoom237((state) => state.layout);
+  const loadingAlbumId = useRoom237((state) => state.loadingAlbumId);
+  const isLoadingAlbum = loadingAlbumId !== null;
+  const activeAlbum = useActiveAlbum();
+  const albumMedia = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => {
+      if (!activeAlbum) return null;
+      return state.albumMediasByPath[activeAlbum.path] ?? null;
+    },
+    (a, b) => {
+      if (a === b) return true;
+      if (!a || !b) return false;
+      if (a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) {
+        if (a[i]?.path !== b[i]?.path) return false;
+      }
+      return true;
+    },
+  );
+  const { mediaPaths } = useSortedMedia();
+  const isUnfocused = useRoom237((state) => state.isUnfocused);
+  const albumIds = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => Object.keys(state.albumsById),
+    isEqual,
+  );
+  const draggedItems = useRoom237((state) => state.draggedItems);
+  const { clear: clearDraggedItems } = useDragDrop();
+  const activeAlbumIsFavorites = useMemo(() => {
+    if (!activeAlbum) return false;
+    return activeAlbum.path === FAVORITES_ALBUM_ID;
+  }, [activeAlbum]);
+  const { t } = useI18n();
 
   const mediaRows = useMemo(() => {
     if (layout === "default") {
-      return Array.from({ length: Math.ceil(media.length / columns) }, (_, i) =>
-        media.slice(i * columns, i * columns + columns),
+      return Array.from(
+        { length: Math.ceil(mediaPaths.length / columns) },
+        (_, i) => mediaPaths.slice(i * columns, i * columns + columns),
       );
     }
     if (layout === "masonry") {
-      // Masonry will use different virtualizer
+      // ? Masonry will use different virtualizer
       return [];
     }
     if (layout === "apple") {
-      return Array.from({ length: Math.ceil(media.length / columns) }, (_, i) =>
-        media.slice(i * columns, i * columns + columns),
+      return Array.from(
+        { length: Math.ceil(mediaPaths.length / columns) },
+        (_, i) => mediaPaths.slice(i * columns, i * columns + columns),
       );
     }
     return [];
-  }, [media, columns, layout]);
+  }, [mediaPaths, columns, layout]);
+
+  const mediaPathsRef = useRef<string[]>([]);
+  mediaPathsRef.current = mediaPaths;
+
+  useLayoutEffect(() => {
+    let cleanup: (() => void) | null = null;
+    let raf: number | null = null;
+
+    const attach = () => {
+      const el = scrollerRef.current;
+      if (!el) return;
+      setScrollEl(el);
+      const { width, height } = el.getBoundingClientRect();
+      setScrollSize({ width, height });
+      const observer = new ResizeObserver(([entry]) => {
+        if (!entry) return;
+        const { width, height } = entry.contentRect;
+        setScrollSize({ width, height });
+      });
+      observer.observe(el);
+      cleanup = () => observer.disconnect();
+    };
+
+    attach();
+    if (!scrollEl && !cleanup) {
+      raf = requestAnimationFrame(attach);
+    }
+
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      if (cleanup) cleanup();
+    };
+  }, [scrollerRef, scrollEl]);
+
+  const gridRowCount = useMemo(
+    () => Math.ceil(mediaPaths.length / columns),
+    [mediaPaths.length, columns],
+  );
+
+  const getGridRowKey = useCallback(
+    (rowIndex: number) =>
+      mediaPathsRef.current[rowIndex * columns] ?? `row-${rowIndex}`,
+    [columns],
+  );
+
+  const getMasonryKey = useCallback(
+    (index: number) => mediaPathsRef.current[index] ?? `item-${index}`,
+    [],
+  );
+
+  const gapRem = useMemo(() => (1 - columns / MAX_COLS) * 0.5 + 0.5, [columns]);
+  const gapPx = gapRem * 16;
+  const gapValue = `${gapRem}rem`;
+  const halfGapValue = `${gapRem / 2}rem`;
+  const rowEstimate = useMemo(() => {
+    const containerWidth =
+      scrollSize.width ??
+      scrollEl?.clientWidth ??
+      (typeof window !== "undefined" ? window.innerWidth : 1200);
+    const usableWidth = Math.max(containerWidth - (columns - 1) * gapPx, 0);
+    const columnWidth = Math.max(usableWidth / columns, 64);
+    return columnWidth + gapPx;
+  }, [columns, gapPx, scrollEl?.clientWidth, scrollSize.width]);
+
+  const measureWithFallback = useCallback(
+    (el: Element) => {
+      const size = el.getBoundingClientRect().height;
+      return size > 0 ? size : rowEstimate;
+    },
+    [rowEstimate],
+  );
+
+  const scrollTarget = scrollEl ?? scrollerRef.current;
 
   const rowVirtualizerGrid = useVirtualizer({
-    count: mediaRows.length,
-    getScrollElement: () => scrollerRef.current,
-    estimateSize: () => 100,
+    count: gridRowCount,
+    getScrollElement: () => scrollTarget,
+    estimateSize: () => rowEstimate,
     overscan: 3,
+    getItemKey: getGridRowKey,
+    measureElement: measureWithFallback,
   });
 
   const rowVirtualizerMasonry = useVirtualizer({
-    count: media.length,
-    getScrollElement: () => scrollerRef.current,
-    estimateSize: () => 100,
+    count: mediaPaths.length,
+    getScrollElement: () => scrollTarget,
+    estimateSize: () => rowEstimate,
     overscan: 3,
     lanes: columns,
+    getItemKey: getMasonryKey,
+    measureElement: measureWithFallback,
   });
 
-  const drop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    if (e.dataTransfer?.files?.length)
-      void uploadFilesToActive(e.dataTransfer.files);
-  };
+  const scrollerHeight = scrollSize.height ?? scrollTarget?.clientHeight ?? 0;
+  const virtualContentHeight =
+    layout === "masonry"
+      ? rowVirtualizerMasonry.getTotalSize()
+      : rowVirtualizerGrid.getTotalSize();
+  const dropZoneHeight = Math.max(virtualContentHeight, scrollerHeight || 0);
 
-  const over = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
-  };
+  const drop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const hasFiles = Boolean(e.dataTransfer?.files?.length);
+      if (hasFiles) {
+        void uploadFilesToActive(e.dataTransfer.files);
+        clearDraggedItems();
+        return;
+      }
+
+      if (draggedItems.length > 0) {
+        clearDraggedItems();
+      }
+    },
+    [clearDraggedItems, draggedItems.length, uploadFilesToActive],
+  );
+
+  const over = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const hasFiles = Boolean(e.dataTransfer?.files?.length);
+      e.dataTransfer.dropEffect =
+        hasFiles || draggedItems.length === 0 ? "copy" : "move";
+    },
+    [draggedItems.length],
+  );
 
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
-      e.preventDefault();
-      if (e.clipboardData?.files.length) {
-        void uploadFilesToActive(e.clipboardData.files);
+      const target = e.target as HTMLElement | null;
+      const isEditable =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+
+      const files = Array.from(e.clipboardData?.files ?? []);
+      if (files.length === 0 || isEditable) {
+        return;
       }
+
+      const mediaFiles = files.filter((f, idx) =>
+        isMedia(nameForClipboard(f, idx)),
+      );
+      if (!mediaFiles.length) {
+        return;
+      }
+
+      e.preventDefault();
+      void uploadFilesToActive(mediaFiles).catch((error) => {
+        console.error("Paste upload failed", error);
+      });
     };
     document.addEventListener("paste", handlePaste);
     return () => {
@@ -89,36 +260,48 @@ export default function MediaGrid({
     };
   }, [uploadFilesToActive]);
 
-  useEffect(() => {
-    const window = getCurrentWindow();
-    const unlistenBlur = window.listen("tauri://blur", () => {
-      setIsUnfocused(true);
-    });
-    const unlistenFocus = window.listen("tauri://focus", () => {
-      setIsUnfocused(false);
-    });
-    return () => {
-      void unlistenBlur.then((f) => f());
-      void unlistenFocus.then((f) => f());
-    };
-  });
+  const rootDir = useRoom237((state) => state.rootDir);
+  const mediaCount = mediaPaths.length;
 
-  if (!activeAlbum && albums.length > 0) {
+  if (!activeAlbum && albumIds.length > 0 && rootDir) {
     return (
-      <div className="flex h-[90vh] items-center justify-center">
-        <div className="text-muted-foreground">Select an album to view</div>
+      <div className="flex h-[90vh] flex-col items-center justify-center pb-4">
+        <GalleryVerticalEnd className="text-muted-foreground mb-3 size-10" />
+        <div className="text-muted-foreground mb-1 text-lg">
+          {t("media.selectAlbum")}
+        </div>
       </div>
     );
   }
 
-  if (loadingAlbum) {
+  if (
+    activeAlbum &&
+    !isLoadingAlbum &&
+    albumMedia !== null &&
+    mediaCount === 0 &&
+    albumIds.length > 0
+  ) {
+    return (
+      <div className="flex h-[90vh] flex-col items-center justify-center pb-6">
+        <Upload className="text-muted-foreground mb-3 size-10" />
+        <div className="text-muted-foreground mb-1 text-lg">
+          {t("media.empty.title")}
+        </div>
+        <div className="text-muted-foreground text-sm">
+          {t("media.empty.subtitle")}
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoadingAlbum) {
     if (layout === "default")
       return (
         <div
-          className="grid grid-cols-1 gap-2 p-1"
+          className="grid grid-cols-1 gap-2"
           style={{
             gridTemplateColumns: `repeat(${columns}, 1fr)`,
-            gap: `${(1 - columns / MAX_COLS) * 0.5 + 0.5}rem`,
+            gap: gapValue,
           }}
         >
           {Array.from({ length: columns * 5 }, (_, i) => (
@@ -136,7 +319,7 @@ export default function MediaGrid({
     if (layout === "masonry")
       return (
         <div
-          className="grid gap-2 p-1"
+          className="grid gap-2"
           style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
         >
           {Array.from({ length: columns }, (_, i) => (
@@ -159,7 +342,7 @@ export default function MediaGrid({
     if (layout === "apple")
       return (
         <div
-          className="grid gap-4 p-1"
+          className="grid gap-4"
           style={{ gridTemplateColumns: `repeat(${columns}, 1fr)` }}
         >
           {Array.from({ length: columns * 5 }, (_, i) => (
@@ -190,14 +373,21 @@ export default function MediaGrid({
       );
   }
 
+  if (activeAlbumIsFavorites) {
+    return <FavoritesAlbum drop={drop} over={over} />;
+  }
+
+  if (!scrollTarget) return null;
+
   return (
     <div
       className={cn(
-        "relative p-1 transition-all duration-200 ease-in-out",
+        "relative transition-all duration-200 ease-in-out",
         isUnfocused && "overflow-hidden opacity-20 blur-xl",
       )}
+      data-allow-drop="true"
       style={{
-        height: `${rowVirtualizerGrid.getTotalSize()}px`,
+        height: `${dropZoneHeight}px`,
       }}
       onDragOver={over}
       onDrop={drop}
@@ -212,27 +402,16 @@ export default function MediaGrid({
             style={{
               transform: `translateY(${virtualRow.start}px)`,
               gridTemplateColumns: `repeat(${columns}, 1fr)`,
-              gap: `${(1 - columns / MAX_COLS) * 0.5 + 0.5}rem`,
-              paddingTop: `${(1 - columns / MAX_COLS) * 0.5 + 0.5}rem`,
+              gap: gapValue,
+              paddingBottom: gapValue,
             }}
           >
-            {mediaRows[virtualRow.index]!.map((item, j) => (
+            {mediaRows[virtualRow.index]!.map((item) => (
               <MediaItem
-                key={item.url}
-                item={item}
-                selected={selection.has(item)}
-                onSelectToggle={toggleSelect}
-                onDragStart={onDragStart}
-                onView={() => viewer.open(virtualRow.index * columns + j)}
-                onRequestDelete={deleteMedia}
-                locked={locked}
+                key={item}
+                mediaPath={item}
                 className="m-0 aspect-square w-full object-cover"
                 imgClassName="w-full object-cover aspect-square"
-                showExtras={columns < 10}
-                style={{
-                  borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
-                  fontSize: `${(1 - columns / MAX_COLS) * 4 + 8}px`,
-                }}
               />
             ))}
           </div>
@@ -246,26 +425,15 @@ export default function MediaGrid({
             style={{
               transform: `translateY(${virtualRow.start}px)`,
               width: `${100 / columns}%`,
-              padding: `${((1 - columns / MAX_COLS) * 0.5 + 0.5) / 2}rem`,
+              padding: halfGapValue,
               left: `${(virtualRow.lane * 100) / columns}%`,
             }}
             className="absolute top-0"
           >
             <MediaItem
-              style={{
-                borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
-                fontSize: `${(1 - columns / MAX_COLS) * 4 + 8}px`,
-              }}
-              item={media[virtualRow.index]!}
-              selected={selection.has(media[virtualRow.index]!)}
-              onSelectToggle={toggleSelect}
-              onDragStart={onDragStart}
-              onView={() => viewer.open(virtualRow.index)}
-              onRequestDelete={deleteMedia}
-              locked={locked}
+              mediaPath={mediaPaths[virtualRow.index]!}
               className="m-0 w-full object-cover"
               imgClassName="w-full object-cover"
-              showExtras={columns < 10}
             />
           </div>
         ))}
@@ -279,30 +447,16 @@ export default function MediaGrid({
             style={{
               transform: `translateY(${virtualRow.start}px)`,
               gridTemplateColumns: `repeat(${columns}, 1fr)`,
-              gap: `${(1 - columns / MAX_COLS) * 0.5 + 0.5}rem`,
-              paddingTop: `${(1 - columns / MAX_COLS) * 0.5 + 0.5}rem`,
+              gap: gapValue,
+              paddingBottom: gapValue,
             }}
           >
-            {mediaRows[virtualRow.index]!.map((item, j) => (
+            {mediaRows[virtualRow.index]!.map((item) => (
               <div
-                key={item.url}
+                key={item}
                 className="flex w-full items-center justify-center"
               >
-                <MediaItem
-                  item={item}
-                  selected={selection.has(item)}
-                  onSelectToggle={toggleSelect}
-                  onDragStart={onDragStart}
-                  onView={() => viewer.open(virtualRow.index * columns + j)}
-                  onRequestDelete={deleteMedia}
-                  locked={locked}
-                  className="m-0"
-                  showExtras={columns < 10}
-                  style={{
-                    borderRadius: `${(1 - columns / MAX_COLS) * 0.75 + 0.15}rem`,
-                    fontSize: `${(1 - columns / MAX_COLS) * 4 + 8}px`,
-                  }}
-                />
+                <MediaItem mediaPath={item} className="m-0" />
               </div>
             ))}
           </div>

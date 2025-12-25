@@ -2,6 +2,7 @@ import "@/styles/globals.css";
 import "@/styles/fonts.css";
 
 import { type Metadata } from "next";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "Room 237",
@@ -13,6 +14,11 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
+      {process.env.NODE_ENV === "development" && (
+        <head>
+          <script src="http://localhost:8097" async></script>
+        </head>
+      )}
       <body className="overflow-hidden overscroll-none">
         <div
           className="text-foreground h-full w-full rounded-3xl select-none"
@@ -22,7 +28,7 @@ export default function RootLayout({
             backgroundRepeat: "repeat",
           }}
         >
-          {children}
+          <Providers>{children}</Providers>
         </div>
       </body>
     </html>

@@ -21,7 +21,7 @@ export function InstallerToast({ update }: { update: Update }) {
   }, [isInstalling]);
 
   return (
-    <div className="relative w-[322px]">
+    <div className="relative w-80.5">
       <div className="flex w-full flex-col gap-2">
         <p>
           {!isInstalling
