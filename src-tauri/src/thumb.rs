@@ -3,14 +3,15 @@ use std::{
     fs::OpenOptions,
     io,
     path::{Path, PathBuf},
-    process::ExitStatus,
     thread,
     time::Duration,
 };
 
 use crate::{
-    constants::{IMAGE_EXTENSIONS, THUMB_MAX_DIM, VIDEO_EXTENSIONS},
-    util::newer_than,
+    constants::{IMAGE_EXTENSIONS, VIDEO_EXTENSIONS},
+    metadata::{load_thumb_version, write_thumb_version},
+    settings::{read_settings, AdvancedSettings},
+    util::{apply_ffmpeg_tuning, ffmpeg_timeout, newer_than, wait_with_timeout},
 };
 use ffmpeg_sidecar::command::FfmpegCommand;
 
@@ -28,71 +29,124 @@ fn thumb_lock_path(thumb: &Path) -> PathBuf {
     thumb.with_extension("lock")
 }
 
-fn generate_image_thumbnail(input: &Path, output: &Path) -> Result<bool, String> {
-    let status: ExitStatus = FfmpegCommand::new()
+fn generate_image_thumbnail(
+    input: &Path,
+    output: &Path,
+    settings: &AdvancedSettings,
+) -> Result<bool, String> {
+    let mut cmd = FfmpegCommand::new();
+    apply_ffmpeg_tuning(&mut cmd, false);
+    let mut child = cmd
         .input(input.to_string_lossy())
         .arg("-y")
         .arg("-vf")
         .arg(format!(
             "scale=min(iw\\,{d}):min(ih\\,{d}):force_original_aspect_ratio=decrease",
-            d = THUMB_MAX_DIM
+            d = settings.thumbnails.max_dim
         ))
         .arg("-c:v")
         .arg("libwebp")
         .arg("-q:v")
-        .arg("75")
+        .arg(settings.thumbnails.image_webp_quality.to_string())
         .arg("-compression_level")
-        .arg("3")
+        .arg(settings.thumbnails.image_webp_compression_level.to_string())
         .output(output.to_string_lossy())
         .spawn()
-        .map_err(|e| e.to_string())?
-        .wait()
         .map_err(|e| e.to_string())?;
-    if !status.success() {
-        log::error!(
-            "thumb image failed {}→{}",
-            input.display(),
-            output.display()
-        );
+    match wait_with_timeout(&mut child, ffmpeg_timeout()) {
+        Ok(status) => {
+            if !status.success() {
+                log::error!(
+                    "thumb image failed {}→{}",
+                    input.display(),
+                    output.display()
+                );
+            }
+            Ok(status.success())
+        }
+        Err(e) => {
+            log::error!(
+                "thumb image timeout {}→{}: {}",
+                input.display(),
+                output.display(),
+                e
+            );
+            Err(e)
+        }
     }
-    Ok(status.success())
 }
 
-fn generate_video_thumbnail(input: &Path, output: &Path) -> Result<bool, String> {
-    let status: ExitStatus = FfmpegCommand::new()
+fn generate_video_thumbnail(
+    input: &Path,
+    output: &Path,
+    settings: &AdvancedSettings,
+) -> Result<bool, String> {
+    let mut cmd = FfmpegCommand::new();
+    apply_ffmpeg_tuning(&mut cmd, true);
+    let mut child = cmd
         .input(input.to_string_lossy())
         .arg("-ss")
-        .arg("1")
+        .arg(format!(
+            "{:.3}",
+            settings.thumbnails.video_seek_seconds.max(0.0)
+        ))
         .arg("-y")
         .arg("-frames:v")
         .arg("1")
         .arg("-vf")
         .arg(format!(
             "scale=min(iw\\,{d}):min(ih\\,{d}):force_original_aspect_ratio=decrease",
-            d = THUMB_MAX_DIM
+            d = settings.thumbnails.max_dim
         ))
         .output(output.to_string_lossy())
         .spawn()
-        .map_err(|e| e.to_string())?
-        .wait()
         .map_err(|e| e.to_string())?;
-    if !status.success() {
-        log::error!(
-            "thumb video failed {}→{}",
-            input.display(),
-            output.display()
-        );
+    match wait_with_timeout(&mut child, ffmpeg_timeout()) {
+        Ok(status) => {
+            if !status.success() {
+                log::error!(
+                    "thumb video failed {}→{}",
+                    input.display(),
+                    output.display()
+                );
+            }
+            Ok(status.success())
+        }
+        Err(e) => {
+            log::error!(
+                "thumb video timeout {}→{}: {}",
+                input.display(),
+                output.display(),
+                e
+            );
+            Err(e)
+        }
     }
-    Ok(status.success())
 }
 
 pub fn ensure_thumb(path: &Path, thumb_dir: &Path) -> Result<PathBuf, String> {
+    let settings = read_settings();
+    ensure_thumb_with_settings(path, thumb_dir, &settings)
+}
+
+pub fn ensure_thumb_with_settings(
+    path: &Path,
+    thumb_dir: &Path,
+    settings: &AdvancedSettings,
+) -> Result<PathBuf, String> {
     let thumb = thumb_path(path, thumb_dir)?;
-    if thumb.exists() && newer_than(&thumb, path).unwrap_or(false) {
+    let thumb_version = settings.thumb_version();
+    let existing_version = load_thumb_version(path);
+    let thumb_fresh = thumb.exists() && newer_than(&thumb, path).unwrap_or(false);
+    if thumb_fresh && existing_version.as_deref() == Some(&thumb_version) {
         return Ok(thumb);
     }
 
     log::info!("generating thumb {}→{}", path.display(), thumb.display());
+    if let Some(parent) = thumb_dir.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let _ = fs::create_dir_all(thumb_dir);
 
     let lock_file = thumb_lock_path(&thumb);
     loop {
@@ -106,10 +160,13 @@ pub fn ensure_thumb(path: &Path, thumb_dir: &Path) -> Result<PathBuf, String> {
                 break;
             }
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-                if thumb.exists() && newer_than(&thumb, path).unwrap_or(false) {
+                if thumb.exists()
+                    && newer_than(&thumb, path).unwrap_or(false)
+                    && existing_version.as_deref() == Some(&thumb_version)
+                {
                     return Ok(thumb);
                 }
-                thread::sleep(Duration::from_millis(50));
+                thread::sleep(Duration::from_millis(settings.thumbnails.lock_poll_ms));
             }
             Err(e) => return Err(e.to_string()),
         }
@@ -122,12 +179,13 @@ pub fn ensure_thumb(path: &Path, thumb_dir: &Path) -> Result<PathBuf, String> {
         .to_ascii_lowercase()
         .as_str()
     {
-        ext if IMAGE_EXTENSIONS.contains(&ext) => generate_image_thumbnail(path, &thumb),
-        ext if VIDEO_EXTENSIONS.contains(&ext) => generate_video_thumbnail(path, &thumb),
+        ext if IMAGE_EXTENSIONS.contains(&ext) => generate_image_thumbnail(path, &thumb, settings),
+        ext if VIDEO_EXTENSIONS.contains(&ext) => generate_video_thumbnail(path, &thumb, settings),
         _ => Ok(false),
     };
 
     let _ = fs::remove_file(&lock_file);
     res?;
+    let _ = write_thumb_version(path, &thumb_version);
     Ok(thumb)
 }

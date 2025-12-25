@@ -1,41 +1,157 @@
-import type { MediaEntry } from "@/lib/types";
+import type { FavoriteDetachedMediaEntry, MediaEntry } from "@/lib/types";
 import { invoke } from "@tauri-apps/api/core";
 import path from "path";
 import { exists, mkdir, remove } from "@tauri-apps/plugin-fs";
-import { toast } from "sonner";
-import { buildAlbum, type Album, type DetachedAlbum } from "../types/album";
+import {
+  buildAlbum,
+  type Album,
+  type AlbumNode,
+  type DetachedAlbum,
+} from "../types/album";
 import { type DetachedMediaEntry } from "../types";
 import { attachMediaEntry } from "../utils";
+import { toast } from "@/components/toaster";
 
 const albumCache = new Map<string, Album>();
 
+export type RenamedAlbumResult = {
+  oldPath: string;
+  newPath: string;
+  oldRelativePath: string;
+  newRelativePath: string;
+  parent?: string | null;
+  name: string;
+};
+
 export async function registerNewMedia(
-  dir: string,
+  album: Album,
   file: string,
 ): Promise<MediaEntry> {
-  const dMediaEntry = (await invoke("register_new_media", {
-    albumPath: dir,
+  const entry = await invoke<DetachedMediaEntry>("register_new_media", {
+    albumPath: album.path,
     mediaName: file,
-  })) satisfies DetachedMediaEntry;
-  return attachMediaEntry(dir, dMediaEntry);
+  });
+  return attachMediaEntry(album.path, entry, album.name, album.albumId);
 }
 
-export async function listAlbums(rootDir: string): Promise<Album[]> {
+export async function setMediaFavorite(
+  mediaPath: string,
+  favorite: boolean,
+): Promise<boolean> {
+  await invoke("set_media_favorite", { path: mediaPath, favorite });
+  return favorite;
+}
+
+export async function listFavorites(
+  rootDir: string,
+): Promise<FavoriteDetachedMediaEntry[]> {
+  return await invoke<FavoriteDetachedMediaEntry[]>("list_favorites", {
+    rootDir,
+  });
+}
+
+export function buildAlbumTree(albums: DetachedAlbum[]): AlbumNode[] {
+  const nodes: Record<string, AlbumNode> = {};
+  const roots: AlbumNode[] = [];
+
+  for (const album of albums) {
+    nodes[album.relative_path] = {
+      id: album.relative_path,
+      name: album.name,
+      path: album.path,
+      children: [],
+    };
+  }
+
+  for (const album of albums) {
+    const node = nodes[album.relative_path];
+    if (!node) continue;
+    const parentId = album.parent ?? undefined;
+    if (parentId && nodes[parentId]) {
+      nodes[parentId].children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+
+  const sortNodes = (list: AlbumNode[]) => {
+    list.sort((a, b) => a.name.localeCompare(b.name));
+    list.forEach((n) => sortNodes(n.children));
+  };
+  sortNodes(roots);
+
+  return roots;
+}
+
+export function computeAggregatedSizes(
+  albumsById: Record<string, Album>,
+): Record<string, number> {
+  const totals: Record<string, number> = {};
+  const children: Record<string, string[]> = {};
+
+  Object.values(albumsById).forEach((album) => {
+    if (album.parentId) {
+      children[album.parentId] ??= [];
+      children[album.parentId]!.push(album.albumId);
+    }
+  });
+
+  const dfs = (id: string): number => {
+    if (totals[id] !== undefined) {
+      return totals[id];
+    }
+    const album = albumsById[id];
+    if (!album) return 0;
+    const childIds = children[id] ?? [];
+    const subtotal =
+      album.size + childIds.reduce((sum, childId) => sum + dfs(childId), 0);
+    totals[id] = subtotal;
+    return subtotal;
+  };
+
+  Object.keys(albumsById).forEach((id) => {
+    if (totals[id] === undefined) {
+      dfs(id);
+    }
+  });
+
+  return totals;
+}
+
+export async function listAlbums(
+  rootDir: string,
+): Promise<{ albumsById: Record<string, Album>; albumTree: AlbumNode[] }> {
   const rawAlbums = (await invoke("get_albums_detached", {
     rootDir,
   })) satisfies DetachedAlbum[];
-  const albums: Album[] = [];
+  const albumsById: Record<string, Album> = {};
   for (const raw of rawAlbums) {
-    const album = await buildAlbum(
-      raw.path,
-      raw.name,
-      raw.thumb_path,
-      raw.size,
-    );
-    albums.push(album);
+    const album = await buildAlbum(raw);
+    albumsById[album.albumId] = album;
   }
-  albums.sort((a, b) => a.name.localeCompare(b.name));
-  return albums;
+  const aggregates = computeAggregatedSizes(albumsById);
+  Object.entries(aggregates).forEach(([albumId, total]) => {
+    if (albumsById[albumId]) {
+      albumsById[albumId].totalSize = total;
+    }
+  });
+  const albumTree = buildAlbumTree(rawAlbums);
+  return { albumsById, albumTree };
+}
+
+export async function markNonDuplicates(
+  dir: string,
+  files: string[],
+): Promise<void> {
+  await invoke("mark_non_duplicates", { dir, files });
+}
+
+export async function resetDuplicates(rootDir: string): Promise<void> {
+  await invoke("reset_duplicates", { rootDir });
+}
+
+export async function clearRoom237Artifacts(rootDir: string): Promise<void> {
+  await invoke("clear_room237_artifacts", { rootDir });
 }
 
 export async function createAlbum(
@@ -53,6 +169,28 @@ export async function createAlbum(
 export async function deleteAlbum(album: Album): Promise<void> {
   albumCache.delete(album.path);
   await remove(album.path, { recursive: true });
+}
+
+export async function renameAlbum(
+  rootDir: string,
+  album: Album,
+  newName: string,
+): Promise<RenamedAlbumResult> {
+  const name = newName.trim();
+  if (!name) throw new Error("Album name cannot be empty");
+  albumCache.delete(album.path);
+  const res = await invoke<RenamedAlbumResult>("rename_album", {
+    rootDir,
+    albumId: album.albumId,
+    newName: name,
+  });
+  albumCache.delete(res.newPath);
+  if (res.oldPath !== res.newPath) {
+    try {
+      await remove(res.oldPath, { recursive: true });
+    } catch {}
+  }
+  return res;
 }
 
 export async function moveMedia(
@@ -84,4 +222,45 @@ export async function moveMedia(
   }
   albumCache.delete(source.path);
   albumCache.delete(target.path);
+}
+
+export async function setMediaTimestamp(
+  albumPath: string,
+  names: string[],
+  timestampSeconds: number,
+): Promise<DetachedMediaEntry[]> {
+  if (!names.length) return [];
+  const ts = Math.max(0, Math.floor(timestampSeconds));
+  return await invoke<DetachedMediaEntry[]>("set_media_timestamp", {
+    albumPath,
+    names,
+    timestamp: ts,
+  });
+}
+
+export async function revealInFileManager(path: string): Promise<void> {
+  await invoke("reveal_in_file_manager", { path });
+}
+
+export type FileManager =
+  | "Finder"
+  | "File Explorer"
+  | "file manager"
+  | "Dolphin"
+  | "GNOME Files"
+  | "Thunar"
+  | "PCManFM-Qt"
+  | "PCManFM"
+  | "Nemo"
+  | "Pantheon Files"
+  | "Caja"
+  | "Konqueror";
+
+export async function getFileManagerName(): Promise<FileManager> {
+  try {
+    const name = await invoke<FileManager>("get_file_manager_name");
+    return name || "file manager";
+  } catch {
+    return "file manager";
+  }
 }

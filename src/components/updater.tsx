@@ -1,12 +1,12 @@
 "use client";
 
+import { toast } from "@/components/toaster";
 import { cn } from "@/lib/utils";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { motion } from "framer-motion";
 import { CloudDownload } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 
 export function InstallerToast({ update }: { update: Update }) {
   const [isInstalling, setIsInstalling] = useState(false);
@@ -21,9 +21,9 @@ export function InstallerToast({ update }: { update: Update }) {
   }, [isInstalling]);
 
   return (
-    <div className="relative w-[322px]">
+    <div className="relative max-w-90 px-2.5 py-2">
       <div className="flex w-full flex-col gap-2">
-        <p>
+        <p className="text-sm">
           {!isInstalling
             ? `Update available: ${update.version}`
             : "Installing update..."}
@@ -79,15 +79,16 @@ export function InstallerToast({ update }: { update: Update }) {
 }
 
 export function Updater() {
-  const toastId = useRef<string | number | null>(null);
+  const toastId = useRef<string | null>(null);
 
   const checkForUpdates = useCallback(async () => {
     if (toastId.current) return;
     const update = await check();
     if (update) {
-      toastId.current = toast(<InstallerToast update={update} />, {
+      const updateToast = toast.custom(<InstallerToast update={update} />, {
         duration: Infinity,
       });
+      toastId.current = updateToast.id;
     }
   }, []);
 

@@ -1,28 +1,24 @@
-import { useGallery } from "@/lib/context/gallery-context";
 import { type ReactNode } from "react";
 import { Debugger } from "./debugger";
 import { LockOverlay } from "./lock-overlay";
 import ConfirmOpen from "./sidebar/confirm-open";
 import { Logger } from "./logger";
+import { useRoom237 } from "@/lib/stores";
 
 export default function AppShell({ children }: { children: ReactNode }) {
-  const { locked, allowOpen, isDebug, rootDir, isLogger, setIsLogger } =
-    useGallery();
+  const allowOpen = useRoom237(
+    (state) => state.allowOpen || !state.confirmOpenEnabled,
+  );
+  const rootDir = useRoom237((state) => state.rootDir);
+
   return (
     <div className="relative flex min-h-screen">
       {allowOpen ? (
         <>
           {children}
-          <LockOverlay locked={locked} />
-          {rootDir && (
-            <Debugger
-              open={isDebug}
-              rootDir={rootDir}
-              isLogger={isLogger}
-              setIsLogger={setIsLogger}
-            />
-          )}
-          <Logger open={isLogger} />
+          <LockOverlay />
+          {rootDir && <Debugger />}
+          <Logger />
         </>
       ) : (
         <ConfirmOpen />

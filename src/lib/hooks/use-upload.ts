@@ -1,50 +1,31 @@
 "use client";
 
-import { useCallback } from "react";
-import { toast } from "sonner";
-import { isMedia } from "@/lib/utils";
-import type { Album } from "@/lib/types/album";
-import { writeFile } from "@tauri-apps/plugin-fs";
-import path from "path";
+import { useRoom237 } from "../stores";
 
-export function useUpload(active: Album | null) {
-  const addFilesToAlbum = useCallback(
-    async (album: Album, files: FileList | File[]) => {
-      const list = Array.from(files).filter((f) => isMedia(f.name));
-      if (!list.length) return;
-      let done = 0;
-      const id = toast.loading(
-        `Adding media to "${album.name}" (${done}/${list.length})`,
-        { duration: Infinity },
-      );
+export function useUpload() {
+  const addFilesToAlbum = useRoom237((state) => state.addFilesToAlbum);
+  const uploadFilesToActive = useRoom237((state) => state.uploadFilesToActive);
+  const moveDraggedToAlbum = useRoom237((state) => state.moveDraggedToAlbum);
+  const refreshFavoritesMap = useRoom237((state) => state.refreshFavoritesMap);
+  const deleteMedias = useRoom237((state) => state.deleteMedias);
+  const deleteMedia = useRoom237((state) => state.deleteMedia);
+  const moveSelectedToAlbum = useRoom237((state) => state.moveSelectedToAlbum);
+  const toggleFavorite = useRoom237((state) => state.toggleFavorite);
+  const setFavorite = useRoom237((state) => state.setFavorite);
+  const moveMediasToAlbum = useRoom237((state) => state.moveMediasToAlbum);
+  const updateMediaDates = useRoom237((state) => state.updateMediaDates);
 
-      for (const file of list) {
-        await writeFile(
-          path.join(album.path, file.name),
-          new Uint8Array(await file.arrayBuffer()),
-        );
-
-        done++;
-        toast.loading(
-          `Adding media to "${album.name}" (${done}/${list.length})`,
-          { id, duration: Infinity },
-        );
-      }
-      toast.loading(`Processing...`, { id, duration: Infinity });
-      // Will generate missing thumbnails and metadata
-      await album.getRawMedia();
-      toast.success(`Added ${list.length} file(s)`, { id, duration: 2000 });
-    },
-    [],
-  );
-
-  const uploadFilesToActive = useCallback(
-    async (f: FileList | File[]) => {
-      if (!active) return;
-      await addFilesToAlbum(active, f);
-    },
-    [active, addFilesToAlbum],
-  );
-
-  return { addFilesToAlbum, uploadFilesToActive };
+  return {
+    addFilesToAlbum,
+    uploadFilesToActive,
+    moveDraggedToAlbum,
+    refreshFavoritesMap,
+    deleteMedias,
+    deleteMedia,
+    moveSelectedToAlbum,
+    toggleFavorite,
+    setFavorite,
+    moveMediasToAlbum,
+    updateMediaDates,
+  };
 }

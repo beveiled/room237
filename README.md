@@ -3,31 +3,41 @@
 # Room 237
 
 > [!WARNING]
-> Disclamier: Project is provided "as is" without any warranty. Use at your own risk. This was a one-weekend project, so expect bugs and issues. It is recommended to keep a backup of your photos before using this app.
+> ⚠️ Disclamier: Project is provided "as is" without any warranty. Use at your own risk. It is recommended to **keep a backup** of your photos before using this app.
 
-## Features
+## What's that
 
-- **Lockscreen**: Need to leave your laptop for a second? Lock your gallery with a single click of "L" and unlock with "U"
-- **Layouts**: Use classic grid, fancy masonry or Apple-Photos-like layout
-- **Lightweight**: Built with Tauri, not Electron
-- **Feels native**: Select multiple photos to drag around, move them between albums, use hotkeys
-- **Open Source**: Free and open source, GNU Affero General Public License v3.0
-- **Auto-Lock**: Automatically locks the gallery after a period of inactivity
-- **Decoy Gallery**: Left-click the "Open" button or unlock with Meta+U to show a decoy gallery if you are under pressure from someone
-- **Alt+Tab Privacy**: No photos visible when you alt-tab away from the app
+> TL;DR: Offline-only photo manager, double-sided sync with folder of subfolders of photos.  
+
+Many people store their photos in a folder on their computer. Some use subfolders to categorize them, e.g. by years. Most of those people are either not familiar with cloud-sync services, or do not trust them for obvious reasons. Conventional open-source photo managers are complicated to set up, they roll their own storage system with MinIO, and are pretty much an overkill for a family photo storage. Not to mention that migrating away from them is a pain.  
+
+Room237 is aimed to solve all of these problems. You can open a folder with folders, wait a few minutes (depending on the size of the library) and use it. Do not like the UI/UX? Just close the app and delete it - your photos are still in the same folder as they were.  
+  
+What the app does:  
+
+1. Creates meta directories, `.room237-metadata` and `.room237-thumb`. Metadata includes info about photos (date taken, hash, etc.), thumbnails are several KB in size and are used to ensure smooth performance on big libraries.
+2. Converts all HEIC photos into JPG. This is the only destructive action made by the app. It is done because some (or all) web engines do not support displaying HEIC.  
+  
+All actions are done by the embedded ffmpeg binary.
 
 ## Usage recommendations
+
+### Lightweight usage
+
+If you are not storing any sensitive photos and/or you do not know how to setup encrypted containers, you can just create a new folder and use it as root for the app.
+
+### Full privacy
 
 To ensure the best privacy and performance, follow these recommendations:
 
 **MacOS**:
 
-1. Create an encrypted disk image on your primary drive ([Create a secure disk image](https://support.apple.com/et-ee/guide/disk-utility/dskutl11888/mac))
+1. Create an encrypted disk image on your **primary** drive ([Create a secure disk image](https://support.apple.com/et-ee/guide/disk-utility/dskutl11888/mac))
 2. Use it (or any subdirectory on it) as a root for Room 237
 
 **Windows**:
 
-1. Do not use BitLocker, PLEASE. It is insecure
+1. ⚠️ Do **NOT** use BitLocker, PLEASE.
 2. Use [VeraCrypt](https://www.veracrypt.fr/en/Home.html) to create an encrypted container
 3. Use it (or any subdirectory on it) as a root for Room 237
 
@@ -38,4 +48,9 @@ To ensure the best privacy and performance, follow these recommendations:
 
 ## Privacy Policy
 
-I don't collect anything. App works completely offline. Check the code, believe it or not - I don't really care.
+I do **NOT** collect anything. App works completely offline. All network requests stay within your machine, except for the ones that go to `github.com` to check for updates. You will get a popup when new update is available, before it is installed.
+
+## Terms of Service
+
+I do not accept contributions (sorry).  
+I do accept issues.

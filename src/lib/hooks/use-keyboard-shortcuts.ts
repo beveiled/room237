@@ -1,47 +1,48 @@
 "use client";
 
-import type { MediaEntry } from "@/lib/types";
 import { useCallback, useEffect, useRef } from "react";
+import { useRoom237 } from "../stores";
+import { useViewer } from "./use-viewer";
 
-interface Opt {
-  selection: Set<MediaEntry>;
-  clearSelection: () => void;
-  selectAll: () => void;
-  viewer: {
-    viewerIndex: number | null;
-    next: () => void;
-    prev: () => void;
-    close: () => void;
-  };
-  lock: { locked: boolean; lock: () => void; unlock: () => void };
-  debug: { isDebug: boolean; setIsDebug: (open: boolean) => void };
-  lockdown: () => void;
-}
+export function useKeyboardShortcuts() {
+  const selection = useRoom237((state) => state.selection);
+  const clearSelection = useRoom237((state) => state.clearSelection);
+  const selectAll = useRoom237((state) => state.selectAll);
+  const locked = useRoom237((state) => state.locked);
+  const setLocked = useRoom237((state) => state.setLocked);
+  const lockscreenEnabled = useRoom237((state) => state.lockscreenEnabled);
+  const setDisplayDecoy = useRoom237((state) => state.setDisplayDecoy);
+  const decoyRoot = useRoom237((state) => state.decoyRoot);
+  const hotRefresh = useRoom237((state) => state.hotRefresh);
 
-export function useKeyboardShortcuts({
-  selection,
-  clearSelection,
-  selectAll,
-  viewer,
-  lock,
-  debug,
-  lockdown,
-}: Opt) {
+  const viewer = useViewer();
+
+  const isDebug = useRoom237((state) => state.isDebug);
+  const setIsDebug = useRoom237((state) => state.setIsDebug);
+
   const keySequence = useRef("");
   const sequenceTimer = useRef<NodeJS.Timeout | null>(null);
   const inactivityTimer = useRef<NodeJS.Timeout | null>(null);
 
   const resetInactivityTimer = useCallback(() => {
+    if (!lockscreenEnabled) return;
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    if (!lock.locked) {
+    if (!locked) {
       inactivityTimer.current = setTimeout(
         () => {
-          lock.lock();
+          setLocked(true);
         },
         5 * 60 * 1000,
       );
     }
-  }, [lock]);
+  }, [locked, lockscreenEnabled, setLocked]);
+
+  useEffect(() => {
+    if (!lockscreenEnabled && inactivityTimer.current) {
+      clearTimeout(inactivityTimer.current);
+      inactivityTimer.current = null;
+    }
+  }, [lockscreenEnabled]);
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -58,22 +59,25 @@ export function useKeyboardShortcuts({
       }, 2000);
 
       if (keySequence.current.includes("venari")) {
-        debug.setIsDebug(true);
+        setIsDebug(true);
         keySequence.current = "";
         return;
       }
 
-      if (lock.locked) {
+      if (lockscreenEnabled && locked) {
         if (k === "u" || k === "г") {
           if (e.metaKey || e.ctrlKey) {
-            lockdown();
+            setDisplayDecoy(true);
+            if (decoyRoot) {
+              void hotRefresh();
+            }
           }
-          lock.unlock();
+          setLocked(false);
         }
         return;
       }
-      if (k === "l" || k === "д") {
-        lock.lock();
+      if (lockscreenEnabled && (k === "l" || k === "д")) {
+        setLocked(true);
         return;
       }
       if (viewer.viewerIndex !== null) {
@@ -92,8 +96,8 @@ export function useKeyboardShortcuts({
         return;
       }
 
-      if (k === "escape" && debug.isDebug) {
-        debug.setIsDebug(false);
+      if (k === "escape" && isDebug) {
+        setIsDebug(false);
         return;
       }
     };
@@ -118,11 +122,16 @@ export function useKeyboardShortcuts({
   }, [
     selection,
     viewer,
-    lock,
     clearSelection,
     selectAll,
-    debug,
+    isDebug,
+    setIsDebug,
     resetInactivityTimer,
-    lockdown,
+    locked,
+    setLocked,
+    setDisplayDecoy,
+    decoyRoot,
+    hotRefresh,
+    lockscreenEnabled,
   ]);
 }
