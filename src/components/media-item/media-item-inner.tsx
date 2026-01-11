@@ -26,7 +26,10 @@ export const MediaItemInner = ({
 
   const selected = useStoreWithEqualityFn(
     useRoom237,
-    (state) => item && state.selection.includes(item),
+    (state) =>
+      Boolean(
+        item && state.selection.some((entry) => entry.path === item.path),
+      ),
     isEqual,
   );
 

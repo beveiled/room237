@@ -9,7 +9,7 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { FAVORITES_ALBUM_ID } from "@/lib/consts";
-import { revealInFileManager } from "@/lib/fs/albumService";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useMediaItem } from "@/lib/hooks/use-media-item";
 import { useFileManagerName } from "@/lib/hooks/use-file-manager-name";
 import { useUpload } from "@/lib/hooks/use-upload";
@@ -73,7 +73,7 @@ export const MediaItem = memo(function MediaItem({
   const handleReveal = useCallback(async () => {
     if (!mediaPath) return;
     try {
-      await revealInFileManager(mediaPath);
+      await revealItemInDir(mediaPath);
     } catch (error) {
       console.error(error);
       toast.error("Failed to reveal in file manager");

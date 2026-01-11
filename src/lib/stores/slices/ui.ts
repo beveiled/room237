@@ -68,7 +68,8 @@ export const uiSlice: CustomStateCreator<UISlice> = (set, get) => ({
   toggleSelection: (media, additive) => {
     if (!additive) return;
     const n = get().selection.slice();
-    if (n.includes(media)) n.splice(n.indexOf(media), 1);
+    const idx = n.findIndex((m) => m.path === media.path);
+    if (idx !== -1) n.splice(idx, 1);
     else n.push(media);
     set({ selection: n });
   },

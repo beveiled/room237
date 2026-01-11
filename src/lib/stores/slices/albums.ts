@@ -4,6 +4,7 @@ import {
   deleteAlbum as _deleteAlbum,
   computeAggregatedSizes,
   listAlbums,
+  moveAlbum as _moveAlbum,
   renameAlbum as _renameAlbum,
 } from "@/lib/fs/albumService";
 import { getStore } from "@/lib/fs/state";
@@ -406,6 +407,77 @@ export const albumsSlice: CustomStateCreator<AlbumsSlice> = (set, get) => ({
       state.displayDecoy && state.decoyRoot ? state.decoyRoot : state.rootDir;
     if (!rootDir) return;
     await _deleteAlbum(album);
+  },
+
+  moveAlbum: async (album: Album, newParentId: AlbumId | null) => {
+    const state = get();
+    const rootDir =
+      state.displayDecoy && state.decoyRoot ? state.decoyRoot : state.rootDir;
+    if (!rootDir) return;
+    try {
+      const res = await _moveAlbum(rootDir, album, newParentId);
+      const mapId = (id: AlbumId): AlbumId => {
+        if (id === res.oldRelativePath) return res.newRelativePath;
+        if (id.startsWith(`${res.oldRelativePath}/`)) {
+          return res.newRelativePath + id.slice(res.oldRelativePath.length);
+        }
+        return id;
+      };
+
+      set((state) => {
+        const albumMediasByPath = { ...state.albumMediasByPath };
+        if (albumMediasByPath[res.oldPath]) {
+          albumMediasByPath[res.newPath] = albumMediasByPath[res.oldPath]!;
+          delete albumMediasByPath[res.oldPath];
+        }
+        const albumDuplicatesByPath = { ...state.albumDuplicatesByPath };
+        if (albumDuplicatesByPath[res.oldPath]) {
+          albumDuplicatesByPath[res.newPath] =
+            albumDuplicatesByPath[res.oldPath]!;
+          delete albumDuplicatesByPath[res.oldPath];
+        }
+        return {
+          expandedAlbumIds: new Set(
+            Array.from(state.expandedAlbumIds).map(mapId),
+          ),
+          manuallyExpandedAlbumIds: new Set(
+            Array.from(state.manuallyExpandedAlbumIds).map(mapId),
+          ),
+          activeAlbumId:
+            state.activeAlbumId && state.activeAlbumId !== FAVORITES_ALBUM_ID
+              ? mapId(state.activeAlbumId)
+              : state.activeAlbumId,
+          selection: [],
+          viewerIndex: null,
+          albumMediasByPath,
+          albumDuplicatesByPath,
+        };
+      });
+
+      await get().hotRefresh();
+      const activeId = get().activeAlbumId;
+      if (
+        activeId &&
+        activeId !== FAVORITES_ALBUM_ID &&
+        !get().albumsById[activeId]
+      ) {
+        set({
+          activeAlbumId: null,
+          favoritesOnly: false,
+          loadingAlbumId: null,
+          selection: [],
+          viewerIndex: null,
+        });
+      }
+      toast.success(`Moved "${album.name}"`);
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to move album";
+      toast.error(message);
+      throw error;
+    }
   },
 
   renameAlbum: async (album: Album, newName: string) => {

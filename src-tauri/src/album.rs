@@ -1,7 +1,6 @@
 use std::{
     fs,
     path::{Path, PathBuf},
-    process::Command,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -632,6 +631,126 @@ pub fn rename_album(
 }
 
 #[tauri::command]
+pub fn move_album(
+    root_dir: String,
+    album_id: String,
+    new_parent_id: Option<String>,
+) -> Result<RenamedAlbumResult, String> {
+    if album_id.trim().is_empty() {
+        return Err("Album id is required".to_string());
+    }
+    if album_id.eq_ignore_ascii_case("favorites") {
+        return Err("Cannot move favorites album".to_string());
+    }
+
+    let root = PathBuf::from(&root_dir);
+    if !root.is_dir() {
+        return Err(format!("{} is not a directory", root.display()));
+    }
+    let normalized_root = root
+        .canonicalize()
+        .map_err(|e| format!("Failed to resolve root: {e}"))?;
+
+    let target = normalized_root.join(Path::new(&album_id));
+    let normalized_target = target
+        .canonicalize()
+        .map_err(|_| "Album not found".to_string())?;
+
+    if !normalized_target.starts_with(&normalized_root) {
+        return Err("Album path escapes root".to_string());
+    }
+
+    let album_name = normalized_target
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or("Invalid album name")?
+        .to_string();
+
+    if normalized_target.parent().is_none() {
+        return Err("Cannot move root directory".to_string());
+    }
+
+    let target_parent = new_parent_id
+        .filter(|p| !p.trim().is_empty())
+        .map(|p| normalized_root.join(Path::new(&p)))
+        .unwrap_or(normalized_root.clone());
+    let normalized_parent = target_parent
+        .canonicalize()
+        .map_err(|_| "Target album not found".to_string())?;
+
+    if !normalized_parent.is_dir() {
+        return Err("Target album is not a directory".to_string());
+    }
+    if !normalized_parent.starts_with(&normalized_root) {
+        return Err("Target path escapes root".to_string());
+    }
+    if normalized_parent.starts_with(&normalized_target) {
+        return Err("Cannot move album into its own subtree".to_string());
+    }
+
+    let new_path = normalized_parent.join(&album_name);
+    if new_path == normalized_target {
+        let rel = normalized_target
+            .strip_prefix(&normalized_root)
+            .map_err(|e| e.to_string())
+            .map(normalized_relative_path)?;
+        let parent_rel = if normalized_parent == normalized_root {
+            None
+        } else {
+            normalized_parent
+                .strip_prefix(&normalized_root)
+                .ok()
+                .map(normalized_relative_path)
+        };
+        return Ok(RenamedAlbumResult {
+            old_path: normalized_target.to_string_lossy().to_string(),
+            new_path: normalized_target.to_string_lossy().to_string(),
+            old_relative_path: rel.clone(),
+            new_relative_path: rel,
+            parent: parent_rel,
+            name: album_name,
+        });
+    }
+
+    if new_path.exists() {
+        return Err(format!(
+            "Album \"{}\" already exists in {}",
+            album_name,
+            normalized_parent.display()
+        ));
+    }
+
+    fs::rename(&normalized_target, &new_path).map_err(|e| e.to_string())?;
+    drop_preload_for_path(&normalized_target);
+
+    let old_relative_path = normalized_target
+        .strip_prefix(&normalized_root)
+        .map_err(|e| e.to_string())
+        .map(normalized_relative_path)?;
+    let new_relative_path = new_path
+        .strip_prefix(&normalized_root)
+        .map_err(|e| e.to_string())
+        .map(normalized_relative_path)?;
+    let parent_relative = if normalized_parent == normalized_root {
+        None
+    } else {
+        normalized_parent
+            .strip_prefix(&normalized_root)
+            .ok()
+            .map(normalized_relative_path)
+    };
+
+    Ok(RenamedAlbumResult {
+        old_path: normalized_target.to_string_lossy().to_string(),
+        new_path: new_path.to_string_lossy().to_string(),
+        old_relative_path,
+        new_relative_path,
+        parent: parent_relative,
+        name: album_name,
+    })
+}
+
+#[tauri::command]
 pub fn get_album_size(dir: String) -> Result<u64, String> {
     let dir = PathBuf::from(&dir);
     if !dir.is_dir() {
@@ -805,56 +924,6 @@ fn register_new_media_internal(
     })
 }
 
-#[tauri::command]
-pub fn reveal_in_file_manager(path: String) -> Result<(), String> {
-    let target = PathBuf::from(&path);
-    if !target.exists() {
-        return Err(format!("{} does not exist", path));
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        let status = Command::new("open")
-            .arg("-R")
-            .arg(&target)
-            .status()
-            .map_err(|e| e.to_string())?;
-        if !status.success() {
-            return Err("Failed to reveal file".to_string());
-        }
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        let mut arg = String::from("/select,");
-        arg.push_str(&target.to_string_lossy().replace('/', "\\"));
-        let status = Command::new("explorer")
-            .arg(arg)
-            .status()
-            .map_err(|e| e.to_string())?;
-        if !status.success() {
-            return Err("Failed to reveal file".to_string());
-        }
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        let dir = if target.is_dir() {
-            target.clone()
-        } else {
-            target.parent().ok_or("Invalid path")?.to_path_buf()
-        };
-        let status = Command::new("xdg-open")
-            .arg(dir)
-            .status()
-            .map_err(|e| e.to_string())?;
-        if !status.success() {
-            return Err("Failed to open file manager".to_string());
-        }
-    }
-
-    Ok(())
-}
 fn add_media_files_blocking(
     dir: String,
     files: Vec<IncomingFile>,

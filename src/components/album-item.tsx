@@ -2,15 +2,19 @@
 "use client";
 
 import { FAVORITES_ALBUM_ID } from "@/lib/consts";
+import { useFileManagerName } from "@/lib/hooks/use-file-manager-name";
 import { useUpload } from "@/lib/hooks/use-upload";
 import { useRoom237 } from "@/lib/stores";
 import type { Album, AlbumNode } from "@/lib/types/album";
-import { cn, debounce } from "@/lib/utils";
+import { cn, debounce, getFileManagerIcon } from "@/lib/utils";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ChevronRight,
   EyeOff,
   Heart,
+  Link2,
+  FolderInput,
   Pencil,
   Plus,
   Trash2,
@@ -34,6 +38,7 @@ import {
 } from "./ui/context-menu";
 import { Input } from "./ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "./ui/popover";
+import { toast } from "./toaster";
 
 function AlbumThumbnail({
   album,
@@ -163,14 +168,22 @@ export function AlbumTreeItem({
   const expandedBeforeDragRef = useRef(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuMode, setMenuMode] = useState<"default" | "move">("default");
   const createAlbum = useRoom237((state) => state.createAlbum);
   const renameAlbum = useRoom237((state) => state.renameAlbum);
   const deleteAlbum = useRoom237((state) => state.deleteAlbum);
+  const moveAlbum = useRoom237((state) => state.moveAlbum);
   const hotRefresh = useRoom237((state) => state.hotRefresh);
+  const albumTree = useRoom237((state) => state.albumTree);
   const [inlineAction, setInlineAction] = useState<
     "rename" | "create" | "delete" | null
   >(null);
   const [nameInput, setNameInput] = useState(node.name);
+  const fileManagerName = useFileManagerName() ?? "file manager";
+  const fileManagerIcon = useMemo(
+    () => getFileManagerIcon(fileManagerName),
+    [fileManagerName],
+  );
 
   const subtreeIds = useMemo(() => {
     const ids = new Set<string>();
@@ -544,6 +557,52 @@ export function AlbumTreeItem({
     };
   }, [handleDragOverDebounced]);
 
+  const handleReveal = useCallback(async () => {
+    if (!album) return;
+    try {
+      await revealItemInDir(album.path);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to reveal in file manager");
+    }
+  }, [album]);
+
+  const handleCopyPath = useCallback(async () => {
+    if (!album) return;
+    try {
+      await navigator.clipboard.writeText(album.path);
+      toast.success("Path copied");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to copy path");
+    }
+  }, [album]);
+
+  const destinations = useMemo(() => {
+    const list: { id: string; name: string; depth: number }[] = [];
+    const walk = (nodes: AlbumNode[], depth: number) => {
+      nodes.forEach((child) => {
+        if (isInSubtree(child.id)) return;
+        list.push({ id: String(child.id), name: child.name, depth });
+        if (child.children.length) walk(child.children, depth + 1);
+      });
+    };
+    walk(albumTree, 0);
+    return list;
+  }, [albumTree, isInSubtree]);
+
+  const handleMoveAlbum = useCallback(
+    async (targetId: string) => {
+      if (!album) return;
+      try {
+        await moveAlbum(album, targetId);
+      } catch (error) {
+        console.error(error);
+      }
+    },
+    [album, moveAlbum],
+  );
+
   const openInline = useCallback(
     (kind: "rename" | "create" | "delete") => {
       if (kind === "rename") {
@@ -721,6 +780,7 @@ export function AlbumTreeItem({
         open={menuOpen}
         onOpenChange={(open) => {
           setMenuOpen(open);
+          if (!open) setMenuMode("default");
           if (open && inlineAction) setInlineAction(null);
         }}
       >
@@ -782,19 +842,118 @@ export function AlbumTreeItem({
             if (inlineAction) e.preventDefault();
           }}
         >
-          <ContextMenuItem onSelect={() => openInline("create")}>
-            <Plus className="mr-2 size-4" /> New sub-album
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => openInline("rename")}>
-            <Pencil className="mr-2 size-4" /> Rename
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-          <ContextMenuItem
-            className="text-red-500"
-            onSelect={() => openInline("delete")}
-          >
-            <Trash2 className="mr-2 size-4" /> Delete
-          </ContextMenuItem>
+          <AnimatePresence mode="popLayout" initial={false}>
+            {menuMode === "default" && (
+              <motion.div
+                key="default-menu"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                transition={{ duration: 0.12 }}
+              >
+                <ContextMenuItem
+                  className="gap-2"
+                  onSelect={() => openInline("create")}
+                >
+                  <Plus className="size-4" /> New sub-album
+                </ContextMenuItem>
+                <ContextMenuItem
+                  className="gap-2"
+                  onSelect={() => openInline("rename")}
+                >
+                  <Pencil className="size-4" /> Rename
+                </ContextMenuItem>
+                <ContextMenuItem
+                  className="gap-2"
+                  onSelect={() => {
+                    void handleReveal();
+                    setMenuOpen(false);
+                  }}
+                >
+                  {fileManagerIcon}
+                  Reveal in {fileManagerName}
+                </ContextMenuItem>
+                <ContextMenuItem
+                  className="gap-2"
+                  onSelect={() => {
+                    void handleCopyPath();
+                    setMenuOpen(false);
+                  }}
+                >
+                  <Link2 className="size-4" />
+                  Copy path
+                </ContextMenuItem>
+                <ContextMenuItem
+                  className="gap-2"
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setMenuMode("move");
+                    setMenuOpen(true);
+                  }}
+                >
+                  <FolderInput className="size-4" />
+                  Move to album
+                </ContextMenuItem>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  className="gap-2 text-red-500"
+                  onSelect={() => openInline("delete")}
+                >
+                  <Trash2 className="size-4" /> Delete
+                </ContextMenuItem>
+              </motion.div>
+            )}
+            {menuMode === "move" && (
+              <motion.div
+                key="move-menu"
+                className="space-y-2 p-1"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 4 }}
+                transition={{ duration: 0.12 }}
+              >
+                <div className="px-3 pt-1 text-sm font-semibold">
+                  Move to album
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {destinations.length ? (
+                    destinations.map((dest) => (
+                      <ContextMenuItem
+                        key={dest.id}
+                        inset
+                        disabled={dest.id === album.parentId}
+                        style={{ paddingLeft: dest.depth * 12 + 12 }}
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          void handleMoveAlbum(dest.id).finally(() => {
+                            setMenuMode("default");
+                            setMenuOpen(false);
+                          });
+                        }}
+                      >
+                        <FolderInput className="mr-2 size-4" />
+                        {dest.name}
+                      </ContextMenuItem>
+                    ))
+                  ) : (
+                    <ContextMenuItem disabled>
+                      No available destinations
+                    </ContextMenuItem>
+                  )}
+                </div>
+                <ContextMenuSeparator />
+                <ContextMenuItem
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    setMenuMode("default");
+                    setMenuOpen(false);
+                  }}
+                >
+                  Cancel
+                </ContextMenuItem>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </ContextMenuContent>
       </ContextMenu>
       {inlineContent}

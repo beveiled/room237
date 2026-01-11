@@ -15,11 +15,28 @@
     "core:window:allow-close",
     "core:window:allow-set-fullscreen",
     "core:window:allow-set-content-protected",
+    "opener:allow-reveal-item-in-dir",
     {
       "identifier": "fs:scope",
       "allow": [
         {
           "path": "**/*"
+        }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "**/*"
+        }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        {
+          "url": "https://github.com/beveiled/room237"
         }
       ]
     },
