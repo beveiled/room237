@@ -17,13 +17,12 @@ export function useDragDrop() {
       media: MediaEntry,
     ) => {
       const selection = useRoom237.getState().selection;
-      if (!selection.includes(media) && selection.length > 0) {
+      const isSelected = selection.some((item) => item.path === media.path);
+      if (!isSelected && selection.length > 0) {
         e.preventDefault();
         return;
       }
-      const medias = selection.includes(media)
-        ? Array.from(selection)
-        : [media];
+      const medias = isSelected ? Array.from(selection) : [media];
       setDraggedItems(medias);
       const sp = createStackPreview(medias);
       sp.style.position = "absolute";

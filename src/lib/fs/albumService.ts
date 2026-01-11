@@ -193,6 +193,21 @@ export async function renameAlbum(
   return res;
 }
 
+export async function moveAlbum(
+  rootDir: string,
+  album: Album,
+  newParentId: string | null,
+): Promise<RenamedAlbumResult> {
+  albumCache.delete(album.path);
+  const res = await invoke<RenamedAlbumResult>("move_album", {
+    rootDir,
+    albumId: album.albumId,
+    newParentId,
+  });
+  albumCache.delete(res.newPath);
+  return res;
+}
+
 export async function moveMedia(
   source: Album,
   target: Album,
@@ -236,10 +251,6 @@ export async function setMediaTimestamp(
     names,
     timestamp: ts,
   });
-}
-
-export async function revealInFileManager(path: string): Promise<void> {
-  await invoke("reveal_in_file_manager", { path });
 }
 
 export type FileManager =

@@ -58,6 +58,7 @@ export type AlbumsSlice = {
   createAlbum: (name: string, parentId?: AlbumId | null) => Promise<void>;
   deleteAlbum: (album: Album) => Promise<void>;
   renameAlbum: (album: Album, newName: string) => Promise<void>;
+  moveAlbum: (album: Album, newParentId: AlbumId | null) => Promise<void>;
 };
 
 export type MediaSlice = {

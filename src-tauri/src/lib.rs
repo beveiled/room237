@@ -15,7 +15,7 @@ use tauri::Manager;
 
 pub use album::{
     add_media_files, get_album_media, get_album_size, get_albums_detached, list_favorites,
-    move_media, register_new_media, rename_album, reveal_in_file_manager,
+    move_album, move_media, register_new_media, rename_album,
 };
 pub use debugging::{
     clear_room237_artifacts, rebuild_metadata, rebuild_thumbnails, reset_duplicates,
@@ -29,6 +29,7 @@ pub use util::get_file_manager_name;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
@@ -51,8 +52,8 @@ pub fn run() {
             set_media_favorite,
             list_favorites,
             rename_album,
+            move_album,
             set_media_timestamp,
-            reveal_in_file_manager,
             get_file_manager_name,
             get_settings,
             update_settings,

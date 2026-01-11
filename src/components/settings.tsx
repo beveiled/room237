@@ -17,7 +17,8 @@ import {
   ShieldOff,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { Button } from "./ui/button";
 import { useRoom237 } from "@/lib/stores";
 import { AdvancedSettingsPopover } from "./advanced-settings";
@@ -54,10 +55,17 @@ export function Settings({
   const language = useRoom237((state) => state.language);
   const setLanguage = useRoom237((state) => state.setLanguage);
   const { t } = useI18n();
+  const [appVersion, setAppVersion] = useState<string | null>(null);
   const flagSrc: Record<Language, string> = {
     en: "/flags/en.png",
     ru: "/flags/ru.png",
   };
+
+  useEffect(() => {
+    void getVersion()
+      .then((version) => setAppVersion(version))
+      .catch(() => setAppVersion(null));
+  }, []);
 
   return (
     <Popover open={isOpen} onOpenChange={() => null}>
@@ -204,6 +212,9 @@ export function Settings({
               ))}
             </SelectContent>
           </Select>
+        </div>
+        <div className="text-muted-foreground mt-3 text-xs">
+          Room237 {appVersion ?? "..."}
         </div>
         <AdvancedSettingsPopover
           side={advancedSide}

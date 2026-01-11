@@ -2,7 +2,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export function Controls() {
   return (
-    <div className="absolute top-5 left-5 z-[9999] flex items-center gap-[9px]">
+    <div className="absolute top-5 left-5 z-9999 flex items-center gap-2.25">
       <div
         className="flex size-3.5 items-center justify-center rounded-full border-[0.5px] border-black/20 bg-[#ec6765] text-transparent saturate-150 hover:text-black/50"
         onClick={() => getCurrentWindow().close()}
