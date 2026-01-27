@@ -10,15 +10,15 @@ import { cn, debounce, getFileManagerIcon } from "@/lib/utils";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  ChevronRight,
-  EyeOff,
-  Heart,
-  Link2,
-  FolderInput,
-  Pencil,
-  Plus,
-  Trash2,
-} from "lucide-react";
+  IconChevronRight,
+  IconEyeOff,
+  IconHeart,
+  IconLink,
+  IconFolderOpen,
+  IconPencil,
+  IconPlus,
+  IconTrash,
+} from "@tabler/icons-react";
 import {
   useCallback,
   useEffect,
@@ -62,12 +62,12 @@ function AlbumThumbnail({
       )}
       {!isFavorite && privacyEnabled && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-          <EyeOff className="text-foreground size-3 opacity-70" />
+          <IconEyeOff className="text-foreground size-3 opacity-70" />
         </div>
       )}
       {isFavorite && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <Heart className="size-4 text-red-500" />
+          <IconHeart className="size-4 text-red-500" />
         </div>
       )}
     </div>
@@ -139,7 +139,9 @@ export function AlbumTreeItem({
       a?.thumb === b?.thumb &&
       a?.name === b?.name,
   );
-  const expanded = useRoom237((state) => state.expandedAlbumIds.has(node.id));
+  const expanded = useRoom237(
+    (state) => state.expandedAlbumIds.has(node.id) && node.children.length > 0,
+  );
   const expandAlbum = useRoom237((state) => state.expandAlbum);
   const collapseAlbum = useRoom237((state) => state.collapseAlbum);
   const markManualExpand = useRoom237((state) => state.markManualExpand);
@@ -411,7 +413,10 @@ export function AlbumTreeItem({
 
   const handleDrop = useCallback(
     (e: React.DragEvent<HTMLDivElement>): void => {
-      if (!album) return;
+      if (!album) {
+        console.log("[DROP] No album");
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       setHighlighted(false);
@@ -419,17 +424,42 @@ export function AlbumTreeItem({
       clearCollapseTimer();
       clearDragHoverHint();
       autoExpandedByDragRef.current = false;
-      if (album.path === FAVORITES_ALBUM_ID || isSelfDrag) return;
+
+      console.log(
+        "[DROP] Album:",
+        album.name,
+        "isSelfDrag:",
+        isSelfDrag,
+        "draggedItems:",
+        draggedItems.length,
+      );
+
+      if (album.path === FAVORITES_ALBUM_ID || isSelfDrag) {
+        console.log("[DROP] Skipped - favorites or self drag");
+        return;
+      }
+
       const hasFiles = Boolean(e.dataTransfer?.files?.length);
       if (hasFiles) {
+        console.log(
+          "[DROP] External files detected, count:",
+          e.dataTransfer.files.length,
+        );
         void addFilesToAlbum(album, e.dataTransfer.files);
         clearDraggedItems();
         return;
       }
 
       if (draggedItems.length > 0) {
+        console.log(
+          "[DROP] Moving items to album:",
+          album.name,
+          "items:",
+          draggedItems.map((i) => i.name),
+        );
         void moveDraggedToAlbum(album);
-        clearDraggedItems();
+      } else {
+        console.log("[DROP] No dragged items to move");
       }
     },
     [
@@ -439,9 +469,9 @@ export function AlbumTreeItem({
       clearDragHoverHint,
       clearDraggedItems,
       clearHoverTimer,
-      draggedItems.length,
       isSelfDrag,
       moveDraggedToAlbum,
+      draggedItems,
     ],
   );
 
@@ -516,46 +546,66 @@ export function AlbumTreeItem({
     [draggedItems.length],
   );
 
-  const handleDragOver = useCallback(
-    (e: React.DragEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      if (album?.path === FAVORITES_ALBUM_ID) {
-        clearDragHoverHint();
-        return;
-      }
-      if (isSelfDrag) {
-        e.dataTransfer.dropEffect = "none";
-        setHighlighted(false);
-        clearDragHoverHint();
-        clearHoverTimer();
-        return;
-      }
-      e.dataTransfer.dropEffect = dropEffect;
-      setHighlighted(true);
-      updateDragHint(e);
-      startHoverExpand();
-    },
+  const handleDragOverUI = useMemo(
+    () =>
+      debounce((e: React.DragEvent<HTMLDivElement>) => {
+        if (album?.path === FAVORITES_ALBUM_ID || isSelfDrag) {
+          setHighlighted(false);
+          clearDragHoverHint();
+          clearHoverTimer();
+          return;
+        }
+        setHighlighted(true);
+        updateDragHint(e);
+        startHoverExpand();
+      }),
     [
       album,
       clearDragHoverHint,
       clearHoverTimer,
-      dropEffect,
       isSelfDrag,
       startHoverExpand,
       updateDragHint,
     ],
   );
 
-  const handleDragOverDebounced = useMemo(
-    () => debounce(handleDragOver),
-    [handleDragOver],
+  const handleDragOver = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+
+      console.log(
+        "[DRAGOVER] Album:",
+        album?.name,
+        "isSelfDrag:",
+        isSelfDrag,
+        "draggedItems:",
+        draggedItems.length,
+      );
+
+      if (album?.path === FAVORITES_ALBUM_ID) {
+        console.log("[DRAGOVER] Rejected - favorites album");
+        e.dataTransfer.dropEffect = "none";
+        return;
+      }
+      if (isSelfDrag) {
+        console.log("[DRAGOVER] Rejected - self drag");
+        e.dataTransfer.dropEffect = "none";
+        return;
+      }
+
+      e.dataTransfer.dropEffect = dropEffect;
+      console.log("[DRAGOVER] Allowed - dropEffect:", dropEffect);
+
+      handleDragOverUI(e);
+    },
+    [album, draggedItems.length, dropEffect, isSelfDrag, handleDragOverUI],
   );
 
   useEffect(() => {
     return () => {
-      handleDragOverDebounced.cancel();
+      handleDragOverUI.cancel();
     };
-  }, [handleDragOverDebounced]);
+  }, [handleDragOverUI]);
 
   const handleReveal = useCallback(async () => {
     if (!album) return;
@@ -794,7 +844,7 @@ export function AlbumTreeItem({
               key={`album-item-${album.path}`}
               onClick={onClick}
               onDragEnter={handleDragEnter}
-              onDragOver={handleDragOverDebounced}
+              onDragOver={handleDragOver}
               onDragLeave={handleDragLeaveDebounced}
               onDrop={handleDrop}
               className={cn(
@@ -820,7 +870,7 @@ export function AlbumTreeItem({
                     onClick={handleCaretClick}
                     className="text-muted-foreground hover:text-foreground pointer-events-auto flex h-6 w-6 items-center justify-center rounded-md"
                   >
-                    <ChevronRight
+                    <IconChevronRight
                       className={cn(
                         "size-3 transition-transform",
                         expanded && "rotate-90",
@@ -855,13 +905,13 @@ export function AlbumTreeItem({
                   className="gap-2"
                   onSelect={() => openInline("create")}
                 >
-                  <Plus className="size-4" /> New sub-album
+                  <IconPlus className="size-4" /> New sub-album
                 </ContextMenuItem>
                 <ContextMenuItem
                   className="gap-2"
                   onSelect={() => openInline("rename")}
                 >
-                  <Pencil className="size-4" /> Rename
+                  <IconPencil className="size-4" /> Rename
                 </ContextMenuItem>
                 <ContextMenuItem
                   className="gap-2"
@@ -880,7 +930,7 @@ export function AlbumTreeItem({
                     setMenuOpen(false);
                   }}
                 >
-                  <Link2 className="size-4" />
+                  <IconLink className="size-4" />
                   Copy path
                 </ContextMenuItem>
                 <ContextMenuItem
@@ -891,7 +941,7 @@ export function AlbumTreeItem({
                     setMenuOpen(true);
                   }}
                 >
-                  <FolderInput className="size-4" />
+                  <IconFolderOpen className="size-4" />
                   Move to album
                 </ContextMenuItem>
                 <ContextMenuSeparator />
@@ -899,7 +949,7 @@ export function AlbumTreeItem({
                   className="gap-2 text-red-500"
                   onSelect={() => openInline("delete")}
                 >
-                  <Trash2 className="size-4" /> Delete
+                  <IconTrash className="size-4" /> Delete
                 </ContextMenuItem>
               </motion.div>
             )}
@@ -931,7 +981,7 @@ export function AlbumTreeItem({
                           });
                         }}
                       >
-                        <FolderInput className="mr-2 size-4" />
+                        <IconFolderOpen className="mr-2 size-4" />
                         {dest.name}
                       </ContextMenuItem>
                     ))

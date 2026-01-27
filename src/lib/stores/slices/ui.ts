@@ -55,6 +55,9 @@ export const uiSlice: CustomStateCreator<UISlice> = (set, get) => ({
   randomSeed: 1,
   fileManagerName: null,
   viewerIndex: null,
+  batchOperationInProgress: false,
+  setBatchOperationInProgress: (inProgress) =>
+    set({ batchOperationInProgress: inProgress }),
   setFileManagerName: (fileManagerName) => set({ fileManagerName }),
   setDraggedItems: (items) => set({ draggedItems: items }),
   clearDraggedItems: () => set({ draggedItems: [] }),
@@ -202,26 +205,32 @@ export const uiSlice: CustomStateCreator<UISlice> = (set, get) => ({
   deleteMedias: async (medias: MediaEntry[]) => {
     const state = get();
     if (!medias.length) return;
-    const grouped = medias.reduce<Record<string, MediaEntry[]>>(
-      (acc, media) => {
-        const key = media.albumId;
-        acc[key] = acc[key] ? [...acc[key], media] : [media];
-        return acc;
-      },
-      {},
-    );
 
-    for (const [albumId, items] of Object.entries(grouped)) {
-      const album = state.albumsById[albumId];
-      if (!album || album.path === FAVORITES_ALBUM_ID) continue;
-      for (const media of items) {
-        await remove(media.path);
+    set({ batchOperationInProgress: true });
+    try {
+      const grouped = medias.reduce<Record<string, MediaEntry[]>>(
+        (acc, media) => {
+          const key = media.albumId;
+          acc[key] = acc[key] ? [...acc[key], media] : [media];
+          return acc;
+        },
+        {},
+      );
+
+      for (const [albumId, items] of Object.entries(grouped)) {
+        const album = state.albumsById[albumId];
+        if (!album || album.path === FAVORITES_ALBUM_ID) continue;
+        for (const media of items) {
+          await remove(media.path);
+        }
+        await get().loadAlbumMedia(album, { force: true });
       }
-      await get().loadAlbumMedia(album, { force: true });
-    }
 
-    await get().refreshFavoritesMap();
-    set({ selection: [], viewerIndex: null });
+      await get().refreshFavoritesMap();
+      set({ selection: [], viewerIndex: null });
+    } finally {
+      set({ batchOperationInProgress: false });
+    }
   },
   deleteMedia: async (media: MediaEntry) => {
     await get().deleteMedias([media]);
@@ -229,38 +238,45 @@ export const uiSlice: CustomStateCreator<UISlice> = (set, get) => ({
   moveMediasToAlbum: async (album: Album, medias: MediaEntry[]) => {
     const state = get();
     if (!medias.length || album.path === FAVORITES_ALBUM_ID) return;
-    const albums = state.albumsById;
-    const grouped = medias.reduce<Record<string, MediaEntry[]>>(
-      (acc, media) => {
-        if (media.albumId === album.albumId) return acc;
-        acc[media.albumId] = acc[media.albumId]
-          ? [...acc[media.albumId]!, media]
-          : [media];
-        return acc;
-      },
-      {},
-    );
-    const touched = new Set<string>();
 
-    for (const [albumId, items] of Object.entries(grouped)) {
-      const source = albums[albumId];
-      if (!source || source.path === FAVORITES_ALBUM_ID) continue;
-      await moveMedia(source, album, items);
-      touched.add(source.albumId);
+    set({ batchOperationInProgress: true });
+    try {
+      const albums = state.albumsById;
+      const grouped = medias.reduce<Record<string, MediaEntry[]>>(
+        (acc, media) => {
+          if (media.albumId === album.albumId) return acc;
+          acc[media.albumId] = acc[media.albumId]
+            ? [...acc[media.albumId]!, media]
+            : [media];
+          return acc;
+        },
+        {},
+      );
+      const touched = new Set<string>();
+
+      for (const [albumId, items] of Object.entries(grouped)) {
+        const source = albums[albumId];
+        if (!source || source.path === FAVORITES_ALBUM_ID) continue;
+        await moveMedia(source, album, items, {
+          language: get().language,
+        });
+        touched.add(source.albumId);
+      }
+
+      if (touched.size === 0) return;
+      touched.add(album.albumId);
+
+      for (const id of touched) {
+        const targetAlbum = albums[id];
+        if (!targetAlbum) continue;
+        await get().loadAlbumMedia(targetAlbum, { force: true });
+      }
+
+      await get().refreshFavoritesMap();
+      set({ selection: [], viewerIndex: null });
+    } finally {
+      set({ batchOperationInProgress: false });
     }
-
-    if (touched.size === 0) return;
-
-    touched.add(album.albumId);
-
-    for (const id of touched) {
-      const targetAlbum = albums[id];
-      if (!targetAlbum) continue;
-      await get().loadAlbumMedia(targetAlbum, { force: true });
-    }
-
-    await get().refreshFavoritesMap();
-    set({ selection: [], viewerIndex: null });
   },
   patchMediaDates: (medias: MediaEntry[], timestamp: number) => {
     const state = get();
@@ -445,6 +461,7 @@ export const uiSlice: CustomStateCreator<UISlice> = (set, get) => ({
 
     const tempFiles: string[] = [];
 
+    set({ batchOperationInProgress: true });
     try {
       const pasteTempDir = await tempDir();
       const now = Date.now();
@@ -513,6 +530,7 @@ export const uiSlice: CustomStateCreator<UISlice> = (set, get) => ({
           console.warn("Failed to cleanup temp paste file", err);
         }
       }
+      set({ batchOperationInProgress: false });
     }
   },
   uploadFilesToActive: async (files: FileList | File[]) => {
@@ -526,11 +544,10 @@ export const uiSlice: CustomStateCreator<UISlice> = (set, get) => ({
     await get().addFilesToAlbum(activeAlbum, files);
   },
   moveDraggedToAlbum: async (album: Album) => {
-    const state = get();
-    const medias = state.draggedItems;
+    const medias = get().draggedItems;
+    set({ draggedItems: [] });
     if (!medias.length) return;
     await get().moveMediasToAlbum(album, medias);
-    set({ draggedItems: [] });
   },
   moveSelectedToAlbum: async (albumId: string) => {
     const state = get();

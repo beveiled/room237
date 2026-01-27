@@ -1,17 +1,17 @@
 import type { VariantProps } from "class-variance-authority";
 import { cva } from "class-variance-authority";
 import {
-  ArrowBigUp,
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  ArrowRightToLine,
-  ArrowUp,
-  Command,
-  CornerDownLeft,
-  Delete,
-  Option,
-} from "lucide-react";
+  IconArrowBigUp,
+  IconArrowDown,
+  IconArrowLeft,
+  IconArrowRight,
+  IconArrowBarRight,
+  IconArrowUp,
+  IconCommand,
+  IconCornerDownLeft,
+  IconBackspace,
+  IconCommand as IconOption,
+} from "@tabler/icons-react";
 import { PiMouseRightClickFill, PiMouseLeftClickFill } from "react-icons/pi";
 import { useMemo } from "react";
 
@@ -54,16 +54,16 @@ function KbdPrimitive({
 
   const icons = useMemo(() => {
     return {
-      enter: CornerDownLeft,
-      meta: os === "macos" ? Command : "Ctrl",
-      option: os === "macos" ? Option : "Alt",
-      backspace: Delete,
-      shift: ArrowBigUp,
-      tab: ArrowRightToLine,
-      arrowleft: ArrowLeft,
-      arrowright: ArrowRight,
-      arrowdown: ArrowDown,
-      arrowup: ArrowUp,
+      enter: IconCornerDownLeft,
+      meta: os === "macos" ? IconCommand : "Ctrl",
+      option: os === "macos" ? IconOption : "Alt",
+      backspace: IconBackspace,
+      shift: IconArrowBigUp,
+      tab: IconArrowBarRight,
+      arrowleft: IconArrowLeft,
+      arrowright: IconArrowRight,
+      arrowdown: IconArrowDown,
+      arrowup: IconArrowUp,
       click: PiMouseLeftClickFill,
       rightclick: PiMouseRightClickFill,
     };

@@ -1,6 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, InfoIcon, Loader2, XCircle } from "lucide-react";
+import {
+  IconCircleCheck,
+  IconInfoCircle,
+  IconLoader2,
+  IconCircleX,
+} from "@tabler/icons-react";
 
 type ToastType = "success" | "error" | "info" | "loading" | "custom";
 
@@ -155,16 +160,16 @@ export function ToastComponent(toast: ToastInternals) {
       ) : (
         <>
           {toast.type === "success" && (
-            <CheckCircle2 className="size-5 text-green-500" />
+            <IconCircleCheck className="size-5 text-green-500" />
           )}
           {toast.type === "error" && (
-            <XCircle className="size-5 text-red-500" />
+            <IconCircleX className="size-5 text-red-500" />
           )}
           {toast.type === "info" && (
-            <InfoIcon className="size-5 text-blue-500" />
+            <IconInfoCircle className="size-5 text-blue-500" />
           )}
           {toast.type === "loading" && (
-            <Loader2 className="text-muted-foreground size-5 animate-spin" />
+            <IconLoader2 className="text-muted-foreground size-5 animate-spin" />
           )}
           <motion.div
             initial={{ width: 0, marginLeft: 0 }}

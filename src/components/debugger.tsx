@@ -3,13 +3,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  BookA,
-  GalleryVerticalEnd,
-  Loader2,
-  Logs,
-  RefreshCcw,
-  Trash2,
-} from "lucide-react";
+  IconBook,
+  IconLayoutGrid,
+  IconLoader2,
+  IconFileText,
+  IconRefresh,
+  IconTrash,
+} from "@tabler/icons-react";
 import { useState } from "react";
 import { Button } from "./ui/button";
 
@@ -81,9 +81,9 @@ export function Debugger() {
               disabled={thumbnailsRebuilding}
             >
               {thumbnailsRebuilding ? (
-                <Loader2 className="animate-spin" />
+                <IconLoader2 className="animate-spin" />
               ) : (
-                <GalleryVerticalEnd />
+                <IconLayoutGrid />
               )}
               Rebuild Thumbnails
             </Button>
@@ -103,14 +103,14 @@ export function Debugger() {
               disabled={metadataRebuilding}
             >
               {metadataRebuilding ? (
-                <Loader2 className="animate-spin" />
+                <IconLoader2 className="animate-spin" />
               ) : (
-                <BookA />
+                <IconBook />
               )}
               Rebuild Metadata
             </Button>
             <Button className="mt-2" onClick={() => setIsLogger(!isLogger)}>
-              <Logs />
+              <IconFileText />
               {isLogger ? "Close Logger" : "Open Logger"}
             </Button>
             {displayDecoy && (
@@ -141,9 +141,9 @@ export function Debugger() {
               }}
             >
               {resettingDupes ? (
-                <Loader2 className="animate-spin" />
+                <IconLoader2 className="animate-spin" />
               ) : (
-                <RefreshCcw />
+                <IconRefresh />
               )}
               Reset Duplicates
             </Button>
@@ -173,9 +173,9 @@ export function Debugger() {
               }}
             >
               {clearingArtifacts ? (
-                <Loader2 className="animate-spin" />
+                <IconLoader2 className="animate-spin" />
               ) : (
-                <Trash2 />
+                <IconTrash />
               )}
               {confirmClear
                 ? "Confirm clear (destructive)"

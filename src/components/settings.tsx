@@ -10,13 +10,13 @@ import { useRootDir } from "@/lib/hooks/use-root-dir";
 import { open } from "@tauri-apps/plugin-dialog";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Folder,
-  FolderOpen,
-  SettingsIcon,
-  Shield,
-  ShieldOff,
-  X,
-} from "lucide-react";
+  IconFolder,
+  IconFolderOpen,
+  IconSettings,
+  IconShield,
+  IconShieldOff,
+  IconX,
+} from "@tabler/icons-react";
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { Button } from "./ui/button";
@@ -89,7 +89,7 @@ export function Settings({
                   exit={{ opacity: 0, rotate: 0 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <X className="h-4 w-4" />
+                  <IconX className="h-4 w-4" />
                 </motion.div>
               ) : (
                 <motion.div
@@ -100,7 +100,7 @@ export function Settings({
                   exit={{ opacity: 0, rotate: 0 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <SettingsIcon className="h-4 w-4" />
+                  <IconSettings className="h-4 w-4" />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -118,7 +118,7 @@ export function Settings({
                 void pickDirectory();
               }}
             >
-              <FolderOpen className="size-4" />
+              <IconFolderOpen className="size-4" />
               {t("settings.changeRoot")}
             </Button>
             {privacyEnabled && (
@@ -137,7 +137,7 @@ export function Settings({
                           void setDecoyRoot(null);
                         }}
                       >
-                        <X className="size-4" />
+                        <IconX className="size-4" />
                       </Button>
                     </div>
                   </div>
@@ -151,7 +151,7 @@ export function Settings({
                     void setDecoyRoot(dir);
                   }}
                 >
-                  <Folder />
+                  <IconFolder />
                   {decoyRoot
                     ? t("settings.changeDecoy")
                     : t("settings.pickDecoy")}
@@ -163,9 +163,9 @@ export function Settings({
         <div className="mb-1 flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-medium">
             {effectiveContentProtected ? (
-              <Shield className="size-4" />
+              <IconShield className="size-4" />
             ) : (
-              <ShieldOff className="size-4" />
+              <IconShieldOff className="size-4" />
             )}
             <span>{t("settings.preventScreenshots")}</span>
           </div>

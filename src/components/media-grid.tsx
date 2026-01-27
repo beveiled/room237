@@ -10,7 +10,7 @@ import { useRoom237 } from "@/lib/stores";
 import { cn } from "@/lib/utils";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { isEqual } from "lodash";
-import { GalleryVerticalEnd, Upload } from "lucide-react";
+import { IconLayoutGrid, IconUpload } from "@tabler/icons-react";
 import {
   useCallback,
   useEffect,
@@ -266,7 +266,7 @@ export default function MediaGrid({
   if (!activeAlbum && albumIds.length > 0 && rootDir) {
     return (
       <div className="flex h-[90vh] flex-col items-center justify-center pb-4">
-        <GalleryVerticalEnd className="text-muted-foreground mb-3 size-10" />
+        <IconLayoutGrid className="text-muted-foreground mb-3 size-10" />
         <div className="text-muted-foreground mb-1 text-lg">
           {t("media.selectAlbum")}
         </div>
@@ -283,7 +283,7 @@ export default function MediaGrid({
   ) {
     return (
       <div className="flex h-[90vh] flex-col items-center justify-center pb-6">
-        <Upload className="text-muted-foreground mb-3 size-10" />
+        <IconUpload className="text-muted-foreground mb-3 size-10" />
         <div className="text-muted-foreground mb-1 text-lg">
           {t("media.empty.title")}
         </div>
@@ -395,7 +395,7 @@ export default function MediaGrid({
       {layout === "default" &&
         rowVirtualizerGrid.getVirtualItems().map((virtualRow) => (
           <div
-            className="absolute top-0 left-0 grid"
+            className="absolute top-0 left-0 grid w-full"
             key={virtualRow.key}
             data-index={virtualRow.index}
             ref={rowVirtualizerGrid.measureElement}
@@ -440,7 +440,7 @@ export default function MediaGrid({
       {layout === "apple" &&
         rowVirtualizerGrid.getVirtualItems().map((virtualRow) => (
           <div
-            className="absolute top-0 left-0 grid"
+            className="absolute top-0 left-0 grid w-full"
             key={virtualRow.key}
             data-index={virtualRow.index}
             ref={rowVirtualizerGrid.measureElement}

@@ -11,6 +11,10 @@ import {
 import { type DetachedMediaEntry } from "../types";
 import { attachMediaEntry } from "../utils";
 import { toast } from "@/components/toaster";
+import { translate } from "@/lib/i18n";
+import type { Language } from "@/lib/stores/types";
+
+const MOVE_MEDIA_BATCH_SIZE = 300;
 
 const albumCache = new Map<string, Album>();
 
@@ -212,27 +216,34 @@ export async function moveMedia(
   source: Album,
   target: Album,
   medias: MediaEntry[],
+  options?: { language?: Language },
 ): Promise<void> {
-  const errors = [];
-  for (const media of medias) {
-    const result = await invoke("move_media", {
+  const language = options?.language ?? "en";
+  const loadingToast = toast.loading(
+    translate(language, "toast.moveMedia.loading", { count: medias.length }),
+  );
+  const names = medias.map((m) => m.name);
+  const failed: string[] = [];
+  for (let i = 0; i < names.length; i += MOVE_MEDIA_BATCH_SIZE) {
+    const chunk = names.slice(i, i + MOVE_MEDIA_BATCH_SIZE);
+    const batchFailed = await invoke<string[]>("move_media_batch", {
       source: source.path,
       target: target.path,
-      media: media.name,
+      media: chunk,
     });
-    if (result !== "ok") {
-      errors.push(result);
-    }
+    failed.push(...batchFailed);
   }
-  if (errors.length > 0) {
-    toast.error(
-      `Failed to move ${errors.length} media files. Check the console for details.`,
+  if (failed.length > 0) {
+    loadingToast.error(
+      translate(language, "toast.moveMedia.failed", { count: failed.length }),
     );
-    console.error("Failed to move media files:", errors);
+    console.error("Failed to move media files:", failed);
   }
-  if (errors.length < medias.length) {
-    toast.success(
-      `Moved ${medias.length - errors.length} media files successfully.`,
+  if (failed.length < medias.length) {
+    loadingToast.success(
+      translate(language, "toast.moveMedia.success", {
+        count: medias.length - failed.length,
+      }),
     );
   }
   albumCache.delete(source.path);

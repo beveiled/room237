@@ -10,7 +10,6 @@ import {
 import { SORT_KEYS } from "@/lib/consts";
 import { useRoom237 } from "@/lib/stores";
 import type { SortKey } from "@/lib/stores/types";
-import { DynamicIcon } from "lucide-react/dynamic";
 import { useI18n } from "@/lib/i18n";
 
 export function SortSelector() {
@@ -29,15 +28,15 @@ export function SortSelector() {
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {(["shoot", "added", "name", "random"] as const).map((key) => (
-          <SelectItem key={key} value={key} className="cursor-pointer">
-            <DynamicIcon
-              name={SORT_KEYS[key].icon}
-              className="text-foreground"
-            />
-            {t(SORT_KEYS[key].titleKey)}
-          </SelectItem>
-        ))}
+        {(["shoot", "added", "name", "random"] as const).map((key) => {
+          const Icon = SORT_KEYS[key].icon;
+          return (
+            <SelectItem key={key} value={key} className="cursor-pointer">
+              <Icon className="text-foreground" />
+              {t(SORT_KEYS[key].titleKey)}
+            </SelectItem>
+          );
+        })}
       </SelectContent>
     </Select>
   );

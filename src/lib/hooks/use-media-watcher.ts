@@ -15,6 +15,9 @@ export function useMediaWatcher() {
   const urlCache = useRoom237((state) => state.urlCache);
   const loadAlbumMedia = useRoom237((state) => state.loadAlbumMedia);
   const isAlbumLoaded = useRoom237((state) => state.isAlbumLoaded);
+  const batchOperationInProgress = useRoom237(
+    (state) => state.batchOperationInProgress,
+  );
 
   useEffect(() => {
     if (!album || album.path === FAVORITES_ALBUM_ID) return;
@@ -25,6 +28,9 @@ export function useMediaWatcher() {
       unwatch = await watchImmediate(album.path, (event) => {
         void (async () => {
           if (typeof event.type === "string") return;
+
+          const state = useRoom237.getState();
+          if (state.batchOperationInProgress) return;
 
           if ("create" in event.type) {
             const entry = event.type.create;
@@ -91,5 +97,12 @@ export function useMediaWatcher() {
     return () => {
       unwatch();
     };
-  }, [album, triggerAlbumUpdate, urlCache, isAlbumLoaded, loadAlbumMedia]);
+  }, [
+    album,
+    triggerAlbumUpdate,
+    urlCache,
+    isAlbumLoaded,
+    loadAlbumMedia,
+    batchOperationInProgress,
+  ]);
 }

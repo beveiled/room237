@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils";
 import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, Loader2 } from "lucide-react";
+import { IconCheck, IconLoader2 } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { LottiePlayer } from "@/lib/lottie";
 import { CircularProgress } from "./ui/circular-progress";
@@ -259,9 +259,9 @@ export function PreloadingScreen() {
                         )}
                       >
                         {isComplete ? (
-                          <Check className="size-3" />
+                          <IconCheck className="size-3" />
                         ) : isActive ? (
-                          <Loader2 className="size-3 animate-spin" />
+                          <IconLoader2 className="size-3 animate-spin" />
                         ) : (
                           idx + 1
                         )}

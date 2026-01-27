@@ -1,13 +1,18 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import type { SortedMediaEntry } from "@/lib/hooks/use-sorted-media";
 import { useUpload } from "@/lib/hooks/use-upload";
 import { useViewer } from "@/lib/hooks/use-viewer";
 import { useRoom237 } from "@/lib/stores";
-import { cn, copyFile, isImage } from "@/lib/utils";
+import { cn, copyFile, isImage, extractItemFromState } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { ClipboardCopy, Heart, Loader2, Trash, X } from "lucide-react";
+import {
+  IconClipboard,
+  IconHeart,
+  IconLoader2,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react";
 import {
   memo,
   useCallback,
@@ -18,12 +23,28 @@ import {
 } from "react";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "../toaster";
+import { useStoreWithEqualityFn } from "zustand/traditional";
+import { isEqual } from "lodash";
 
 export const MediaExtras = memo(function MediaExtras({
-  item,
+  mediaPath,
 }: {
-  item: SortedMediaEntry;
+  mediaPath: string;
 }) {
+  const itemData = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => {
+      const item = extractItemFromState({ state, path: mediaPath });
+      return {
+        name: item?.name,
+        path: item?.path,
+        meta: item?.meta,
+        favorite: item?.favorite,
+        index: item?.index,
+      };
+    },
+    isEqual,
+  );
   const [dateScale, setDateScale] = useState(1);
   const [confirm, setConfirm] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -40,25 +61,27 @@ export const MediaExtras = memo(function MediaExtras({
     useUpload();
 
   const onView = useCallback(() => {
-    viewer.open(item.index);
-  }, [viewer, item]);
+    if (itemData.index !== undefined) viewer.open(itemData.index);
+  }, [viewer, itemData.index]);
 
   const click = useCallback(
     (e: ReactMouseEvent<HTMLDivElement>) => {
       const add = e.metaKey || e.ctrlKey;
       if (add) {
         e.preventDefault();
-        onSelectToggle(item, true);
+        const state = useRoom237.getState();
+        const item = extractItemFromState({ state, path: mediaPath });
+        if (item) onSelectToggle(item, true);
         return;
       }
       onView();
     },
-    [item, onView, onSelectToggle],
+    [mediaPath, onView, onSelectToggle],
   );
 
   let dateTimestamp: number | undefined;
-  if (item.meta.shoot) dateTimestamp = item.meta.shoot * 1000;
-  else if (item.meta.added) dateTimestamp = item.meta.added * 1000;
+  if (itemData.meta?.shoot) dateTimestamp = itemData.meta.shoot * 1000;
+  else if (itemData.meta?.added) dateTimestamp = itemData.meta.added * 1000;
 
   const dateText = useRoom237((state) =>
     dateTimestamp
@@ -141,23 +164,25 @@ export const MediaExtras = memo(function MediaExtras({
           transition={{ type: "spring", stiffness: 500, damping: 25 }}
           className={cn(
             "group-hover:bg-background/70 absolute top-1 right-1 z-30 flex h-6 w-6 cursor-pointer items-center justify-center rounded-md transition-[background-color,opacity,backdrop-filter] duration-150 group-hover:backdrop-blur-sm",
-            item.favorite && "text-red-500",
-            !item.favorite && "opacity-0 group-hover:opacity-100",
+            itemData.favorite && "text-red-500",
+            !itemData.favorite && "opacity-0 group-hover:opacity-100",
           )}
           onClick={(e) => {
             e.stopPropagation();
-            void onToggleFavorite(item);
+            const state = useRoom237.getState();
+            const item = extractItemFromState({ state, path: mediaPath });
+            if (item) void onToggleFavorite(item);
           }}
           onPointerDownCapture={(e) => e.stopPropagation()}
         >
-          <Heart
+          <IconHeart
             className="h-3.5 w-3.5 transition-colors duration-150"
-            fill={item.favorite ? "currentColor" : "none"}
+            fill={itemData.favorite ? "currentColor" : "none"}
           />
         </motion.button>
-      ) : item.favorite ? (
+      ) : itemData.favorite ? (
         <div className="absolute top-1 right-1 z-30 flex h-4 w-4 items-center justify-center rounded-md text-red-500">
-          <Heart
+          <IconHeart
             className="h-3 w-3 transition-colors duration-150"
             fill="currentColor"
           />
@@ -178,9 +203,9 @@ export const MediaExtras = memo(function MediaExtras({
               }}
               onPointerDownCapture={(e) => e.stopPropagation()}
             >
-              <Trash className="h-4 w-4" />
+              <IconTrash className="h-4 w-4" />
             </motion.button>
-            {isImage(item.name) && (
+            {isImage(itemData.name ?? "") && (
               <motion.button
                 whileHover={copying ? {} : { scale: 1.1 }}
                 whileTap={copying ? {} : { scale: 0.9 }}
@@ -190,6 +215,12 @@ export const MediaExtras = memo(function MediaExtras({
                   e.stopPropagation();
                   setCopying(true);
                   try {
+                    const state = useRoom237.getState();
+                    const item = extractItemFromState({
+                      state,
+                      path: mediaPath,
+                    });
+                    if (!item) return;
                     const blobPromise = copyFile(item);
                     await navigator.clipboard.write([
                       new ClipboardItem({ "image/png": blobPromise }),
@@ -205,9 +236,9 @@ export const MediaExtras = memo(function MediaExtras({
                 disabled={copying}
               >
                 {copying ? (
-                  <Loader2 className="text-muted-foreground size-4 animate-spin" />
+                  <IconLoader2 className="text-muted-foreground size-4 animate-spin" />
                 ) : (
-                  <ClipboardCopy className="size-4" />
+                  <IconClipboard className="size-4" />
                 )}
               </motion.button>
             )}
@@ -226,17 +257,21 @@ export const MediaExtras = memo(function MediaExtras({
             <div className="flex gap-1">
               <Button
                 size="sm"
-                onClick={() => onRequestDelete(item)}
+                onClick={() => {
+                  const state = useRoom237.getState();
+                  const item = extractItemFromState({ state, path: mediaPath });
+                  if (item) void onRequestDelete(item);
+                }}
                 variant="destructive"
               >
-                <Trash className="text-red-500" />
+                <IconTrash className="text-red-500" />
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setConfirm(false)}
               >
-                <X />
+                <IconX />
               </Button>
             </div>
           </motion.div>

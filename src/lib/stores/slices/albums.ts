@@ -290,6 +290,8 @@ export const albumsSlice: CustomStateCreator<AlbumsSlice> = (set, get) => ({
       set({ loadingAlbumId: null });
     }
 
+    get().clearSelection();
+
     const store = await getStore();
     await store.set("activeAlbum", albumId);
     await store.save();

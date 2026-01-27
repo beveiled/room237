@@ -3,17 +3,22 @@
 
 import { MAX_COLS } from "@/lib/consts";
 import { useDragDrop } from "@/lib/hooks/use-drag-drop";
-import { useMediaItem } from "@/lib/hooks/use-media-item";
 import { useRoom237 } from "@/lib/stores";
-import { cancelIdle, cn, isVideo, requestIdle } from "@/lib/utils";
+import {
+  cancelIdle,
+  cn,
+  isVideo,
+  requestIdle,
+  extractItemFromState,
+} from "@/lib/utils";
 import { motion } from "framer-motion";
-import { isEqual } from "lodash";
-import { Play } from "lucide-react";
-import { startTransition, useEffect, useMemo, useState } from "react";
-import { useStoreWithEqualityFn } from "zustand/traditional";
+import { IconPlayerPlay } from "@tabler/icons-react";
+import { memo, startTransition, useEffect, useMemo, useState } from "react";
 import { MediaExtras } from "./media-extras";
+import { useStoreWithEqualityFn } from "zustand/traditional";
+import { isEqual } from "lodash";
 
-export const MediaItemInner = ({
+export const MediaItemInner = memo(function MediaItemInner({
   mediaPath,
   className,
   imgClassName,
@@ -21,16 +26,22 @@ export const MediaItemInner = ({
   mediaPath: string;
   className?: string;
   imgClassName?: string;
-}) => {
-  const item = useMediaItem(mediaPath);
-
-  const selected = useStoreWithEqualityFn(
+}) {
+  const itemData = useStoreWithEqualityFn(
     useRoom237,
-    (state) =>
-      Boolean(
-        item && state.selection.some((entry) => entry.path === item.path),
-      ),
+    (state) => {
+      const item = extractItemFromState({ state, path: mediaPath });
+      return {
+        name: item?.name,
+        thumb: item?.thumb,
+        favorite: item?.favorite,
+      };
+    },
     isEqual,
+  );
+
+  const selected = useRoom237((state) =>
+    state.selection.some((i) => i.path === mediaPath),
   );
 
   const { onDragStart, clear } = useDragDrop();
@@ -53,11 +64,13 @@ export const MediaItemInner = ({
     return () => cancelIdle(id);
   }, []);
 
-  if (!item) return null;
+  const showExtras = useMemo(() => columns <= 10, [columns]);
+
+  if (!itemData.name) return null;
 
   return (
     <motion.div
-      data-img-url={item.name}
+      data-img-url={itemData.name}
       exit={{ opacity: 0, y: -300, transition: { duration: 0.15 } }}
       whileHover={{ scale: 1.027 }}
       whileTap={{ scale: 0.98 }}
@@ -68,28 +81,34 @@ export const MediaItemInner = ({
         selected && "shadow-md ring-2 shadow-blue-600/50 ring-blue-500",
       )}
       draggable
-      onDragStart={(e) => onDragStart(e, item)}
+      onDragStart={(e) => {
+        const state = useRoom237.getState();
+        const item = extractItemFromState({ state, path: mediaPath });
+        if (item) onDragStart(e, item);
+      }}
       onDragEnd={clear}
       style={itemStyle}
     >
-      {deferredExtrasOpen && <MediaExtras item={item} />}
+      {deferredExtrasOpen && showExtras && (
+        <MediaExtras mediaPath={mediaPath} />
+      )}
 
-      {isVideo(item.name) ? (
+      {isVideo(itemData.name) ? (
         <>
           <img
-            src={item.thumb}
-            alt={item.name}
+            src={itemData.thumb}
+            alt={itemData.name}
             className={cn(
               "block w-full cursor-pointer select-none",
               imgClassName,
             )}
           />
-          <Play className="pointer-events-none absolute top-1/2 left-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-white/80" />
+          <IconPlayerPlay className="pointer-events-none absolute top-1/2 left-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-white/80" />
         </>
       ) : (
         <img
-          src={item.thumb}
-          alt={item.name}
+          src={itemData.thumb}
+          alt={itemData.name}
           className={cn(
             "block w-full cursor-pointer select-none",
             imgClassName,
@@ -109,6 +128,20 @@ export const MediaItemInner = ({
           }}
         />
       )}
+      {itemData.favorite && (
+        <div className="absolute bottom-1 left-1 flex size-5 items-center justify-center rounded-full bg-black/50 backdrop-blur-sm">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            className="text-red-500"
+          >
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+          </svg>
+        </div>
+      )}
     </motion.div>
   );
-};
+});

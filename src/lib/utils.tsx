@@ -7,13 +7,14 @@ import { type DetachedMediaEntry } from "./types";
 import { exists, readFile } from "@tauri-apps/plugin-fs";
 import { TbBrandFinder } from "react-icons/tb";
 import type { JSX } from "react";
-import { Folder } from "lucide-react";
+import { IconFolder } from "@tabler/icons-react";
 import type { FileManager } from "./fs/albumService";
 import { GiDolphin } from "react-icons/gi";
 import { SiGnome, SiPantheon } from "react-icons/si";
 
 import { useEffect, useState } from "react";
 import { toast } from "@/components/toaster";
+import type { State } from "./stores/types";
 
 export const cn = (...i: ClassValue[]) => twMerge(clsx(i));
 
@@ -308,7 +309,7 @@ export const getFileManagerIcon = (name: FileManager): JSX.Element => {
     case "Pantheon Files":
       return <SiPantheon className="h-4 w-4" />;
     default:
-      return <Folder className="h-4 w-4" />;
+      return <IconFolder className="h-4 w-4" />;
   }
 };
 
@@ -356,4 +357,44 @@ export const useOS = (): OS => {
   }, []);
 
   return os;
+};
+
+export const extractItemFromState = ({
+  state,
+  path,
+  index,
+}:
+  | { state: State; path: string; index?: never }
+  | { state: State; index: number; path?: never }) => {
+  if (!state.activeAlbumId) return undefined;
+
+  if (state.activeAlbumId === "Favorites") {
+    const medias = state.albumMediasByPath.Favorites;
+    if (!medias) return undefined;
+    const sorted = state.favoritesAlbum?.getSortedMediaMap(
+      medias,
+      state.sortKey,
+      state.sortDir,
+      state.favoritesOnly,
+      state.randomSeed,
+    );
+    return path
+      ? sorted?.[path]
+      : Object.values(sorted ?? {}).find((m) => m.index === index);
+  }
+
+  const activeAlbum = state.albumsById[state.activeAlbumId];
+  if (!activeAlbum) return undefined;
+  const medias = state.albumMediasByPath[activeAlbum.path];
+  if (!medias) return undefined;
+  const sorted = activeAlbum.getSortedMediaMap(
+    medias,
+    state.sortKey,
+    state.sortDir,
+    state.favoritesOnly,
+    state.randomSeed,
+  );
+  return path
+    ? sorted?.[path]
+    : Object.values(sorted ?? {}).find((m) => m.index === index);
 };

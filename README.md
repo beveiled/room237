@@ -22,25 +22,25 @@
         <tr>
             <td>Windows</td>
             <td>
-                <a href="https://github.com/hikariatama/room237/releases/download/latest/room237_0.6.7_x64-setup.exe"><img src="https://img.shields.io/badge/Setup-x64-67b7d1.svg?logo=windows"></a><br>
-                <a href="https://github.com/hikariatama/room237/releases/download/latest/room237_0.6.7_x64_en-US.msi"><img src="https://img.shields.io/badge/MSI-x64-2d7d9a.svg?logo=windows"></a>
+                <a href="https://github.com/hikariatama/room237/releases/download/room237-v0.6.8/room237_0.6.8_x64-setup.exe"><img src="https://img.shields.io/badge/Setup-x64-67b7d1.svg?logo=windows"></a><br>
+                <a href="https://github.com/hikariatama/room237/releases/download/room237-v0.6.8/room237_0.6.8_x64_en-US.msi"><img src="https://img.shields.io/badge/MSI-x64-2d7d9a.svg?logo=windows"></a>
             </td>
         </tr>
         <tr>
             <td>macOS</td>
             <td>  
-                <a href="https://github.com/hikariatama/room237/releases/download/latest/room237_0.6.7_x64.dmg"><img src="https://img.shields.io/badge/DMG-Intel%20x64-D33A54.svg?logo=apple"></a><br>
-                <a href="https://github.com/hikariatama/room237/releases/download/latest/room237_0.6.7_aarch64.dmg"><img src="https://img.shields.io/badge/DMG-ARM64-D33A54.svg?logo=apple"></a><br>
-                <a href="https://github.com/hikariatama/room237/releases/download/latest/room237_aarch64.app.tar.gz"><img src="https://img.shields.io/badge/.TAR.GZ-ARM64-D33A54.svg?logo=apple"></a><br>
-                <a href="https://github.com/hikariatama/room237/releases/download/latest/room237_x64.app.tar.gz"><img src="https://img.shields.io/badge/.TAR.GZ-Intel%20x64-D33A54.svg?logo=apple"></a>
+                <a href="https://github.com/hikariatama/room237/releases/download/room237-v0.6.8/room237_0.6.8_x64.dmg"><img src="https://img.shields.io/badge/DMG-Intel%20x64-D33A54.svg?logo=apple"></a><br>
+                <a href="https://github.com/hikariatama/room237/releases/download/room237-v0.6.8/room237_0.6.8_aarch64.dmg"><img src="https://img.shields.io/badge/DMG-ARM64-D33A54.svg?logo=apple"></a><br>
+                <a href="https://github.com/hikariatama/room237/releases/download/room237-v0.6.8/room237_aarch64.app.tar.gz"><img src="https://img.shields.io/badge/.TAR.GZ-ARM64-D33A54.svg?logo=apple"></a><br>
+                <a href="https://github.com/hikariatama/room237/releases/download/room237-v0.6.8/room237_x64.app.tar.gz"><img src="https://img.shields.io/badge/.TAR.GZ-Intel%20x64-D33A54.svg?logo=apple"></a>
             </td>
         </tr>
         <tr>
             <td>Linux</td>
             <td>
-                <a href="https://github.com/hikariatama/room237/releases/download/latest/room237_0.6.7_amd64.AppImage"><img src="https://img.shields.io/badge/AppImage-x64-f84e29.svg?logo=linux"> </a><br>
-                <a href="https://github.com/hikariatama/room237/releases/download/latest/room237_0.6.7_amd64.deb"><img src="https://img.shields.io/badge/DebPackage-x64-FF9966.svg?logo=debian"> </a><br>
-                <a href="https://github.com/hikariatama/room237/releases/download/latest/room237-0.6.7-1.x86_64.rpm"><img src="https://img.shields.io/badge/RpmPackage-x64-F1B42F.svg?logo=redhat"> </a>
+                <a href="https://github.com/hikariatama/room237/releases/download/room237-v0.6.8/room237_0.6.8_amd64.AppImage"><img src="https://img.shields.io/badge/AppImage-x64-f84e29.svg?logo=linux"> </a><br>
+                <a href="https://github.com/hikariatama/room237/releases/download/room237-v0.6.8/room237_0.6.8_amd64.deb"><img src="https://img.shields.io/badge/DebPackage-x64-FF9966.svg?logo=debian"> </a><br>
+                <a href="https://github.com/hikariatama/room237/releases/download/room237-v0.6.8/room237-0.6.8-1.x86_64.rpm"><img src="https://img.shields.io/badge/RpmPackage-x64-F1B42F.svg?logo=redhat"> </a>
             </td>
         </tr>
     </tbody>

@@ -3,7 +3,11 @@
 import { Button } from "@/components/ui/button";
 import { useRoom237 } from "@/lib/stores";
 import { cn } from "@/lib/utils";
-import { FoldVertical, Grid2X2, TableCellsSplit } from "lucide-react";
+import {
+  IconLayoutColumns,
+  IconLayoutGrid,
+  IconLayoutList,
+} from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n";
 
 export function LayoutSelector() {
@@ -26,9 +30,9 @@ export function LayoutSelector() {
         !enabled && "pointer-events-none opacity-50",
       )}
     >
-      {layout === "default" && <Grid2X2 />}
-      {layout === "masonry" && <TableCellsSplit className="rotate-90" />}
-      {layout === "apple" && <FoldVertical />}
+      {layout === "default" && <IconLayoutGrid />}
+      {layout === "masonry" && <IconLayoutList className="rotate-90" />}
+      {layout === "apple" && <IconLayoutColumns />}
       {layout === "default" && t("layout.grid")}
       {layout === "masonry" && t("layout.masonry")}
       {layout === "apple" && t("layout.apple")}

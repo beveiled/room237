@@ -14,6 +14,7 @@ use crate::{
 };
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
 use exif::{Field, In, Reader, Tag, Value};
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 const META_DIR: &str = ".room237-metadata";
@@ -213,20 +214,15 @@ fn album_meta_path(dir: &Path) -> PathBuf {
     meta_dir(dir).join(ALBUM_META_FILE)
 }
 
-fn file_meta_path(dir: &Path, name: &str) -> PathBuf {
-    meta_dir(dir).join(format!("{name}{META_FILE_EXT}"))
-}
-
 fn ensure_meta_dir(dir: &Path) -> std::io::Result<()> {
     fs::create_dir_all(meta_dir(dir))
 }
 
 pub(crate) fn write_file_meta(dir: &Path, name: &str, entry: &FileMetaEntry) -> Result<(), String> {
-    ensure_meta_dir(dir).map_err(|e| e.to_string())?;
-    let path = file_meta_path(dir, name);
-    let json = serde_json::to_string(entry).map_err(|e| e.to_string())?;
     let _guard = STORE_WRITE_LOCK.lock().unwrap();
-    fs::write(path, json).map_err(|e| e.to_string())
+    let mut album = read_album_meta_without_lock(dir);
+    album.files.insert(name.to_string(), entry.clone());
+    write_album_meta_without_lock(dir, &album)
 }
 
 pub(crate) fn mark_thumb_failed(path: &Path) -> Result<(), String> {
@@ -318,45 +314,113 @@ pub(crate) fn mark_hash_failed(path: &Path) -> Result<(), String> {
     write_file_meta(dir, &name, entry)
 }
 
-pub(crate) fn read_album_meta(dir: &Path) -> AlbumMeta {
-    let mut album = AlbumMeta::default();
+fn read_album_meta_without_lock(dir: &Path) -> AlbumMeta {
     let _ = ensure_meta_dir(dir);
+    let album_path = album_meta_path(dir);
 
-    if let Ok(txt) = fs::read_to_string(album_meta_path(dir)) {
+    if let Ok(txt) = fs::read_to_string(&album_path) {
         if let Ok(parsed) = serde_json::from_str::<AlbumMeta>(&txt) {
-            album.duplicates_ignore = parsed.duplicates_ignore;
+            return parsed;
         }
     }
 
-    if let Ok(entries) = fs::read_dir(meta_dir(dir)) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
-            if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                if let Some(stem) = name.strip_suffix(META_FILE_EXT) {
-                    if let Ok(txt) = fs::read_to_string(&path) {
-                        if let Ok(parsed) = serde_json::from_str::<FileMetaEntry>(&txt) {
-                            album.files.insert(stem.to_string(), parsed);
-                        }
-                    }
+    let mut album = AlbumMeta::default();
+    let meta_paths: Vec<(String, PathBuf)> = if let Ok(entries) = fs::read_dir(meta_dir(dir)) {
+        entries
+            .flatten()
+            .filter_map(|entry| {
+                let path = entry.path();
+                if !path.is_file() {
+                    return None;
                 }
-            }
+                let name = path.file_name()?.to_str()?;
+                let stem = name.strip_suffix(META_FILE_EXT)?;
+                Some((stem.to_string(), path))
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    let file_entries: Vec<(String, FileMetaEntry)> = meta_paths
+        .par_iter()
+        .filter_map(|(stem, path)| {
+            let txt = fs::read_to_string(path).ok()?;
+            let parsed = serde_json::from_str::<FileMetaEntry>(&txt).ok()?;
+            Some((stem.clone(), parsed))
+        })
+        .collect();
+
+    for (stem, entry) in file_entries {
+        album.files.insert(stem, entry);
+    }
+
+    if !album.files.is_empty() || !meta_paths.is_empty() {
+        log::info!(
+            "Migrating album metadata to unified format: {}",
+            dir.display()
+        );
+        let _ = write_album_meta_without_lock(dir, &album);
+
+        for (_, path) in meta_paths {
+            let _ = fs::remove_file(path);
         }
     }
+
     album
 }
 
-pub(crate) fn write_album_meta(dir: &Path, data: &AlbumMeta) -> Result<(), String> {
-    ensure_meta_dir(dir).map_err(|e| e.to_string())?;
-    let _guard = STORE_WRITE_LOCK.lock().unwrap();
+pub(crate) fn read_album_meta(dir: &Path) -> AlbumMeta {
+    read_album_meta_without_lock(dir)
+}
 
-    let mut album_level = AlbumMeta::default();
-    album_level.duplicates_ignore = data.duplicates_ignore.clone();
-    let album_json = serde_json::to_string_pretty(&album_level).map_err(|e| e.to_string())?;
+fn write_album_meta_without_lock(dir: &Path, data: &AlbumMeta) -> Result<(), String> {
+    ensure_meta_dir(dir).map_err(|e| e.to_string())?;
+
+    let album_json = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
     fs::write(album_meta_path(dir), album_json).map_err(|e| e.to_string())?;
 
+    Ok(())
+}
+
+pub(crate) fn write_album_meta(dir: &Path, data: &AlbumMeta) -> Result<(), String> {
+    let _guard = STORE_WRITE_LOCK.lock().unwrap();
+    write_album_meta_without_lock(dir, data)
+}
+
+pub(crate) fn transfer_media_metadata_entry_caller_holds_lock(
+    source_dir: &Path,
+    source_name: &str,
+    target_dir: &Path,
+    target_name: &str,
+) -> Result<(), String> {
+    let mut source_album = read_album_meta_without_lock(source_dir);
+    let entry = source_album.files.remove(source_name).unwrap_or_default();
+    write_album_meta_without_lock(source_dir, &source_album)?;
+
+    let mut target_album = read_album_meta_without_lock(target_dir);
+    target_album.files.insert(target_name.to_string(), entry);
+    write_album_meta_without_lock(target_dir, &target_album)?;
+
+    Ok(())
+}
+
+pub(crate) fn transfer_media_metadata_batch_caller_holds_lock(
+    source_dir: &Path,
+    target_dir: &Path,
+    moves: &[(String, String)],
+) -> Result<(), String> {
+    if moves.is_empty() {
+        return Ok(());
+    }
+    let mut source_album = read_album_meta_without_lock(source_dir);
+    let mut target_album = read_album_meta_without_lock(target_dir);
+    for (source_name, target_name) in moves {
+        let entry = source_album.files.remove(source_name).unwrap_or_default();
+        target_album.files.insert(target_name.clone(), entry);
+    }
+    write_album_meta_without_lock(source_dir, &source_album)?;
+    write_album_meta_without_lock(target_dir, &target_album)?;
     Ok(())
 }
 

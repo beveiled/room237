@@ -11,7 +11,7 @@ import { useActiveAlbum } from "@/lib/hooks/use-active-album";
 import { useRoom237 } from "@/lib/stores";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { SquareStack, Trash } from "lucide-react";
+import { IconStack2, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { useI18n } from "@/lib/i18n";
 
@@ -97,7 +97,7 @@ export function AlbumActions() {
                   showDuplicates && "shadow-[0_0_5px_0_var(--color-green-400)]",
                 )}
               >
-                <SquareStack />
+                <IconStack2 />
                 <span>
                   {showDuplicates ? t("duplicates.hide") : t("duplicates.show")}
                 </span>
@@ -116,7 +116,7 @@ export function AlbumActions() {
         <Popover open={deleteOpen} onOpenChange={setDeleteOpen}>
           <PopoverTrigger asChild>
             <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
-              <Trash className="text-red-500" />
+              <IconTrash className="text-red-500" />
               {t("album.deleteTitle")}
             </Button>
           </PopoverTrigger>
@@ -139,7 +139,7 @@ export function AlbumActions() {
                 onClick={() => activeAlbum && deleteAlbum(activeAlbum)}
                 className="flex-auto"
               >
-                <Trash className="text-red-500" />
+                <IconTrash className="text-red-500" />
                 {t("common.delete")}
               </Button>
               <Button variant="secondary" onClick={() => setDeleteOpen(false)}>

@@ -19,7 +19,7 @@ import {
   type AdvancedSettings,
 } from "@/lib/settings/schema";
 import { useAdvancedSettings } from "@/lib/settings/store";
-import { Loader2 } from "lucide-react";
+import { IconLoader2 } from "@tabler/icons-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "@/lib/i18n";
 import { toast } from "./toaster";
@@ -819,13 +819,13 @@ export function AdvancedSettingsPopover({
         <a
           target="_blank"
           className="text-muted-foreground mt-3 text-xs"
-          href="https://github.com/beveiled/room237"
+          href="https://github.com/hikariatama/room237"
           onClick={(e) => {
             e.preventDefault();
-            void openUrl("https://github.com/beveiled/room237");
+            void openUrl("https://github.com/hikariatama/room237");
           }}
         >
-          beveiled/room237
+          hikariatama/room237
         </a>
         <div className="text-muted-foreground mt-1 text-xs">
           &copy; 2025 Daniil Gazizullin. GNU AGPL v4.0.
@@ -840,7 +840,7 @@ export function AdvancedSettingsPopover({
               {t("advanced.cancel")}
             </Button>
             <Button onClick={onSave} disabled={loading}>
-              {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+              {loading && <IconLoader2 className="h-4 w-4 animate-spin" />}
               {t("advanced.save")}
             </Button>
           </div>
