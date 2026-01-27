@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { motion } from "framer-motion";
-import { CloudDownload } from "lucide-react";
+import { IconCloudDownload } from "@tabler/icons-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export function InstallerToast({ update }: { update: Update }) {
@@ -63,7 +63,7 @@ export function InstallerToast({ update }: { update: Update }) {
             transition={{ type: "spring", stiffness: 600, damping: 35 }}
             animate={isInstalling ? { width: 312, height: 4 } : {}}
           >
-            <CloudDownload />
+            <IconCloudDownload />
             Install Update
           </motion.button>
           {isInstalling && (

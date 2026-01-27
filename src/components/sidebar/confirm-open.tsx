@@ -4,7 +4,7 @@ import { LottiePlayer } from "@/lib/lottie";
 import { useRoom237 } from "@/lib/stores";
 import { useRootDir } from "@/lib/hooks/use-root-dir";
 import { Suspense } from "react";
-import { Loader } from "lucide-react";
+import { IconLoader } from "@tabler/icons-react";
 import { Settings } from "../settings";
 import { useI18n } from "@/lib/i18n";
 
@@ -29,7 +29,7 @@ export default function ConfirmOpen() {
       </div>
       <div className="absolute top-0 right-0 bottom-0 left-0 m-auto flex max-w-sm flex-col items-center justify-center pb-8 text-center">
         <Suspense
-          fallback={<Loader className="size-8 animate-spin opacity-50" />}
+          fallback={<IconLoader className="size-8 animate-spin opacity-50" />}
         >
           <LottiePlayer
             src="/lottie/confirm_open.json"

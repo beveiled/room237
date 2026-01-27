@@ -88,6 +88,8 @@ export type UISlice = {
   fileManagerName: string | null;
   viewerIndex: number | null;
   dragHoverHint: DragHoverHint | null;
+  batchOperationInProgress: boolean;
+  setBatchOperationInProgress: (inProgress: boolean) => void;
   setDraggedItems: (items: MediaEntry[]) => void;
   clearDraggedItems: () => void;
   setDragHoverHint: (hint: DragHoverHint) => void;

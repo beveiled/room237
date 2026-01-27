@@ -8,6 +8,7 @@ use std::{
     time::Instant,
 };
 
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use tauri::{async_runtime, AppHandle, Wry};
 
@@ -15,8 +16,9 @@ use crate::{
     constants::{IMAGE_EXTENSIONS, VIDEO_EXTENSIONS},
     duplicates::compute_hash_for_path,
     metadata::{
-        get_file_metadata_cached, get_metadata_with_favorite, read_album_meta, DetachedAlbum,
-        DetachedMediaEntry,
+        get_file_metadata_cached, get_metadata_with_favorite, read_album_meta,
+        transfer_media_metadata_batch_caller_holds_lock,
+        transfer_media_metadata_entry_caller_holds_lock, DetachedAlbum, DetachedMediaEntry,
     },
     preload::{
         artifacts_missing, drop_preload_for_path, enqueue_preload, preload_dir, set_active_root,
@@ -24,7 +26,7 @@ use crate::{
     },
     settings::read_settings,
     thumb::{ensure_thumb, ensure_thumb_with_settings},
-    util::has_extension,
+    util::{has_extension, STORE_WRITE_LOCK},
 };
 
 #[derive(Clone)]
@@ -769,33 +771,24 @@ pub fn get_album_size(dir: String) -> Result<u64, String> {
     Ok(total)
 }
 
-#[tauri::command]
-pub fn move_media(source: String, target: String, media: String) -> Result<String, String> {
-    let source_dir = PathBuf::from(&source);
-    let target_dir = PathBuf::from(&target);
-    let media_name = PathBuf::from(&media);
-    let settings = read_settings();
-    let move_artifacts = settings.album.move_rename_thumbs_and_meta;
-
-    if !(source_dir.is_dir() && target_dir.is_dir()) {
-        return Err("bad dirs".into());
-    }
-
+fn move_one_media(
+    source_dir: &PathBuf,
+    target_dir: &PathBuf,
+    media: &str,
+    move_artifacts: bool,
+) -> Result<(), String> {
+    let media_name = PathBuf::from(media);
     let source_file = source_dir.join(&media_name);
-    let target_name = unique_filename(
-        &target_dir,
-        media_name
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("file"),
-    );
+    let source_name = media_name
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("file");
+    let target_name = unique_filename(target_dir, source_name);
     let target_file = target_dir.join(&target_name);
 
     if !source_file.is_file() {
         return Err("file clash".into());
     }
-
-    fs::rename(&source_file, &target_file).map_err(|e| e.to_string())?;
 
     let (src_thumb_dir, src_meta_dir) = (
         source_dir.join(".room237-thumb"),
@@ -807,6 +800,15 @@ pub fn move_media(source: String, target: String, media: String) -> Result<Strin
     );
 
     if move_artifacts {
+        let _guard = STORE_WRITE_LOCK.lock().unwrap();
+
+        transfer_media_metadata_entry_caller_holds_lock(
+            source_dir.as_path(),
+            source_name,
+            target_dir.as_path(),
+            &target_name,
+        )?;
+
         let thumb_name = {
             let mut os = media_name.file_name().unwrap().to_os_string();
             os.push(".webp");
@@ -815,13 +817,7 @@ pub fn move_media(source: String, target: String, media: String) -> Result<Strin
         if src_thumb_dir.join(&thumb_name).exists() {
             fs::create_dir_all(&tgt_thumb_dir).map_err(|e| e.to_string())?;
             let mut tgt_name = thumb_name.clone();
-            tgt_name.set_file_name(format!(
-                "{}.webp",
-                Path::new(&target_name)
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("file")
-            ));
+            tgt_name.set_file_name(format!("{}.webp", target_name));
             let _ = fs::rename(
                 src_thumb_dir.join(&thumb_name),
                 tgt_thumb_dir.join(&tgt_name),
@@ -836,24 +832,160 @@ pub fn move_media(source: String, target: String, media: String) -> Result<Strin
         if src_meta_dir.join(&meta_name).exists() {
             fs::create_dir_all(&tgt_meta_dir).map_err(|e| e.to_string())?;
             let mut tgt_meta = meta_name.clone();
-            tgt_meta.set_file_name(format!(
-                "{}.meta",
-                Path::new(&target_name)
-                    .file_name()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("file")
-            ));
+            tgt_meta.set_file_name(format!("{}.meta", target_name));
             let _ = fs::rename(src_meta_dir.join(&meta_name), tgt_meta_dir.join(&tgt_meta));
         }
+
+        fs::rename(&source_file, &target_file).map_err(|e| e.to_string())?;
     } else {
         log::info!(
             "Skipped moving thumbnails/metadata for {} due to settings",
             media
         );
+        fs::rename(&source_file, &target_file).map_err(|e| e.to_string())?;
     }
 
     log::info!("move {} → {}", source_file.display(), target_file.display());
-    Ok("ok".into())
+    Ok(())
+}
+
+#[tauri::command]
+pub fn move_media(source: String, target: String, media: String) -> Result<String, String> {
+    let source_dir = PathBuf::from(&source);
+    let target_dir = PathBuf::from(&target);
+    let settings = read_settings();
+    let move_artifacts = settings.album.move_rename_thumbs_and_meta;
+
+    if !(source_dir.is_dir() && target_dir.is_dir()) {
+        return Err("bad dirs".into());
+    }
+    move_one_media(&source_dir, &target_dir, &media, move_artifacts).map(|()| "ok".into())
+}
+
+fn move_media_batch_blocking(
+    source_dir: PathBuf,
+    target_dir: PathBuf,
+    media: Vec<String>,
+    move_artifacts: bool,
+) -> Result<Vec<String>, String> {
+    if !(source_dir.is_dir() && target_dir.is_dir()) {
+        return Err("bad dirs".into());
+    }
+
+    if move_artifacts && !media.is_empty() {
+        let mut moves: Vec<(String, String)> = Vec::with_capacity(media.len());
+        for name in &media {
+            let media_name = PathBuf::from(name);
+            let source_name = media_name
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("file");
+            let target_name = unique_filename(&target_dir, source_name);
+            moves.push((source_name.to_string(), target_name));
+        }
+
+        let src_thumb = source_dir.join(".room237-thumb");
+        let tgt_thumb = target_dir.join(".room237-thumb");
+        let src_meta_dir = source_dir.join(".room237-metadata");
+        let tgt_meta_dir = target_dir.join(".room237-metadata");
+
+        let _guard = STORE_WRITE_LOCK.lock().unwrap();
+        transfer_media_metadata_batch_caller_holds_lock(&source_dir, &target_dir, &moves)?;
+
+        let mut failed = Vec::new();
+        for (i, name) in media.iter().enumerate() {
+            let (_source_name, target_name) = &moves[i];
+            let media_name = PathBuf::from(name);
+            let source_file = source_dir.join(&media_name);
+            let target_file = target_dir.join(&target_name);
+
+            if !source_file.is_file() {
+                failed.push(name.clone());
+                continue;
+            }
+
+            let thumb_name = {
+                let mut os = media_name.file_name().unwrap().to_os_string();
+                os.push(".webp");
+                PathBuf::from(os)
+            };
+            if src_thumb.join(&thumb_name).exists() {
+                let _ = fs::create_dir_all(&tgt_thumb);
+                let mut tgt_name = thumb_name.clone();
+                tgt_name.set_file_name(format!("{}.webp", target_name));
+                let _ = fs::rename(src_thumb.join(&thumb_name), tgt_thumb.join(&tgt_name));
+            }
+
+            let meta_name = {
+                let mut os = media_name.file_name().unwrap().to_os_string();
+                os.push(".meta");
+                PathBuf::from(os)
+            };
+            if src_meta_dir.join(&meta_name).exists() {
+                let _ = fs::create_dir_all(&tgt_meta_dir);
+                let mut tgt_meta = meta_name.clone();
+                tgt_meta.set_file_name(format!("{}.meta", target_name));
+                let _ = fs::rename(src_meta_dir.join(&meta_name), tgt_meta_dir.join(&tgt_meta));
+            }
+
+            if let Err(e) = fs::rename(&source_file, &target_file) {
+                log::warn!(
+                    "move_media_batch: rename failed {} → {}: {}",
+                    source_file.display(),
+                    target_file.display(),
+                    e
+                );
+                failed.push(name.clone());
+            }
+        }
+
+        if !failed.is_empty() {
+            let rollback: Vec<(String, String)> = failed
+                .iter()
+                .filter_map(|name| {
+                    let i = media.iter().position(|m| m == name)?;
+                    let (src, tgt) = moves.get(i)?;
+                    Some((tgt.clone(), src.clone()))
+                })
+                .collect();
+            let _ = transfer_media_metadata_batch_caller_holds_lock(
+                &target_dir,
+                &source_dir,
+                &rollback,
+            );
+        }
+        Ok(failed)
+    } else {
+        let failed: Vec<String> = media
+            .into_iter()
+            .filter_map(|name| {
+                move_one_media(&source_dir, &target_dir, &name, move_artifacts)
+                    .err()
+                    .map(|_| name)
+            })
+            .collect();
+        Ok(failed)
+    }
+}
+
+#[tauri::command]
+pub async fn move_media_batch(
+    source: String,
+    target: String,
+    media: Vec<String>,
+) -> Result<Vec<String>, String> {
+    let source_dir = PathBuf::from(&source);
+    let target_dir = PathBuf::from(&target);
+    let settings = read_settings();
+    let move_artifacts = settings.album.move_rename_thumbs_and_meta;
+
+    let failed = async_runtime::spawn_blocking(move || {
+        move_media_batch_blocking(source_dir, target_dir, media, move_artifacts)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+
+    Ok(failed)
 }
 
 #[tauri::command]
@@ -887,43 +1019,6 @@ pub async fn register_new_media(
     .map_err(|e| e.to_string())?
 }
 
-fn register_new_media_internal(
-    album_path: &Path,
-    media_name: &str,
-) -> Result<DetachedMediaEntry, String> {
-    let settings = read_settings();
-    let hash_cfg = settings.hash_config();
-
-    let path = album_path.join(&media_name);
-    if !path.is_file() {
-        return Err(format!("{} is not a file", path.display()));
-    }
-
-    let thumb_dir = album_path.join(".room237-thumb");
-    fs::create_dir_all(&thumb_dir).map_err(|e| e.to_string())?;
-    let _ = ensure_thumb_with_settings(&path, &thumb_dir, &settings);
-
-    let meta_str = get_file_metadata_cached(&path)?;
-
-    let album_meta = read_album_meta(album_path);
-    if compute_hash_for_path(&album_meta, &path, &hash_cfg, &settings).is_none() {
-        log::warn!("hash not computed for {}", path.display());
-    }
-
-    let favorite = read_album_meta(album_path)
-        .files
-        .get(media_name)
-        .map(|e| if e.favorite { Some(true) } else { None })
-        .unwrap_or(None);
-
-    log::info!("registered new media {}", path.display());
-    Ok(DetachedMediaEntry {
-        meta: meta_str,
-        name: path.file_name().unwrap().to_string_lossy().into_owned(),
-        favorite,
-    })
-}
-
 fn add_media_files_blocking(
     dir: String,
     files: Vec<IncomingFile>,
@@ -935,7 +1030,7 @@ fn add_media_files_blocking(
 
     fs::create_dir_all(album_path.join(".room237-thumb")).ok();
 
-    let mut added: Vec<DetachedMediaEntry> = Vec::new();
+    let mut copied_files: Vec<String> = Vec::new();
 
     for (idx, file) in files.into_iter().enumerate() {
         let name = file.name.trim();
@@ -980,13 +1075,55 @@ fn add_media_files_blocking(
             continue;
         }
 
-        match register_new_media_internal(&album_path, &target_name) {
-            Ok(entry) => added.push(entry),
-            Err(e) => {
-                log::error!("add_media_files: failed to register {}: {}", target_name, e);
-            }
-        }
+        copied_files.push(target_name);
     }
+
+    let album_meta = read_album_meta(&album_path);
+    let settings = read_settings();
+
+    let added: Vec<DetachedMediaEntry> = copied_files
+        .par_iter()
+        .filter_map(|target_name| {
+            let path = album_path.join(&target_name);
+            if !path.is_file() {
+                log::error!("add_media_files: {} is not a file", path.display());
+                return None;
+            }
+
+            let thumb_dir = album_path.join(".room237-thumb");
+            let _ = ensure_thumb_with_settings(&path, &thumb_dir, &settings);
+
+            let meta_str = match get_file_metadata_cached(&path) {
+                Ok(m) => m,
+                Err(e) => {
+                    log::error!(
+                        "add_media_files: failed to get metadata for {}: {}",
+                        target_name,
+                        e
+                    );
+                    return None;
+                }
+            };
+
+            let hash_cfg = settings.hash_config();
+            if compute_hash_for_path(&album_meta, &path, &hash_cfg, &settings).is_none() {
+                log::warn!("hash not computed for {}", path.display());
+            }
+
+            let favorite = album_meta
+                .files
+                .get(target_name.as_str())
+                .map(|e| if e.favorite { Some(true) } else { None })
+                .unwrap_or(None);
+
+            log::info!("registered new media {}", path.display());
+            Some(DetachedMediaEntry {
+                meta: meta_str,
+                name: path.file_name().unwrap().to_string_lossy().into_owned(),
+                favorite,
+            })
+        })
+        .collect();
 
     Ok(added)
 }

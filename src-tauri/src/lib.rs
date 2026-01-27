@@ -15,7 +15,7 @@ use tauri::Manager;
 
 pub use album::{
     add_media_files, get_album_media, get_album_size, get_albums_detached, list_favorites,
-    move_album, move_media, register_new_media, rename_album,
+    move_album, move_media, move_media_batch, register_new_media, rename_album,
 };
 pub use debugging::{
     clear_room237_artifacts, rebuild_metadata, rebuild_thumbnails, reset_duplicates,
@@ -38,6 +38,7 @@ pub fn run() {
             get_album_size,
             get_albums_detached,
             move_media,
+            move_media_batch,
             is_preloading,
             lock_until_preloaded,
             set_allow_open,

@@ -8,13 +8,23 @@ import {
 } from "@/components/ui/popover";
 import { useUpload } from "@/lib/hooks/use-upload";
 import { useViewer } from "@/lib/hooks/use-viewer";
+import { useRoom237 } from "@/lib/stores";
 import {
-  useSortedMedia,
-  type SortedMediaEntry,
-} from "@/lib/hooks/use-sorted-media";
-import { cn, copyFile, isImage, isVideo } from "@/lib/utils";
+  cn,
+  copyFile,
+  extractItemFromState,
+  isImage,
+  isVideo,
+} from "@/lib/utils";
+import {
+  IconClipboard,
+  IconHeart,
+  IconLoader2,
+  IconTrash,
+  IconX,
+} from "@tabler/icons-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ClipboardCopy, Heart, Loader2, Trash, X } from "lucide-react";
+import { isEqual } from "lodash";
 import {
   useCallback,
   useEffect,
@@ -25,6 +35,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { useStoreWithEqualityFn } from "zustand/traditional";
 import { toast } from "./toaster";
 
 const MIN_SCALE = 1;
@@ -37,7 +48,6 @@ const MINIMAP_WIDTH = 75;
 
 export default function MediaViewer() {
   const viewer = useViewer();
-  const { mediaArray } = useSortedMedia();
   const { deleteMedia, toggleFavorite } = useUpload();
   const [mounted, setMounted] = useState(false);
   const bodyRef = useRef<HTMLElement | null>(null);
@@ -96,10 +106,14 @@ export default function MediaViewer() {
     translationRef.current = translation;
   }, [translation]);
 
-  const item = useMemo((): SortedMediaEntry | null => {
-    if (viewer.viewerIndex == null) return null;
-    return mediaArray.find((m) => m.index === viewer.viewerIndex) ?? null;
-  }, [viewer.viewerIndex, mediaArray]);
+  const item = useStoreWithEqualityFn(
+    useRoom237,
+    (state) => {
+      if (!viewer.viewerIndex) return null;
+      return extractItemFromState({ state, index: viewer.viewerIndex });
+    },
+    isEqual,
+  );
 
   const controlsRef = useRef<HTMLDivElement>(null);
 
@@ -107,7 +121,7 @@ export default function MediaViewer() {
     if (!item) return 1;
     const containerRect = controlsRef.current?.getBoundingClientRect();
     if (!containerRect) return 1;
-    const nearestX = Math.max(
+    const nearestIconX = Math.max(
       containerRect.left,
       Math.min(cursor.x, containerRect.right),
     );
@@ -116,7 +130,7 @@ export default function MediaViewer() {
       Math.min(cursor.y, containerRect.bottom),
     );
 
-    const distance = Math.hypot(cursor.x - nearestX, cursor.y - nearestY);
+    const distance = Math.hypot(cursor.x - nearestIconX, cursor.y - nearestY);
 
     const maxDist = 150;
     return Math.max(
@@ -251,10 +265,10 @@ export default function MediaViewer() {
       }
       const scaledWidth = derivedBaseSize.width * nextScale;
       const scaledHeight = derivedBaseSize.height * nextScale;
-      const maxX = Math.max(0, (scaledWidth - containerSize.width) / 2);
+      const maxIconX = Math.max(0, (scaledWidth - containerSize.width) / 2);
       const maxY = Math.max(0, (scaledHeight - containerSize.height) / 2);
       return {
-        x: Math.max(-maxX, Math.min(maxX, x)),
+        x: Math.max(-maxIconX, Math.min(maxIconX, x)),
         y: Math.max(-maxY, Math.min(maxY, y)),
       };
     },
@@ -524,7 +538,7 @@ export default function MediaViewer() {
                   }}
                   onClick={() => toggleFavorite(item)}
                 >
-                  <Heart
+                  <IconHeart
                     className={cn("size-4", item.favorite && "text-red-500")}
                     style={{ opacity: controlsOpacity }}
                     fill={item.favorite ? "currentColor" : "none"}
@@ -557,12 +571,12 @@ export default function MediaViewer() {
                     disabled={copying}
                   >
                     {copying ? (
-                      <Loader2
+                      <IconLoader2
                         className="size-4 animate-spin"
                         style={{ opacity: controlsOpacity }}
                       />
                     ) : (
-                      <ClipboardCopy
+                      <IconClipboard
                         className="size-4"
                         style={{ opacity: controlsOpacity }}
                       />
@@ -586,7 +600,7 @@ export default function MediaViewer() {
                       }}
                       onClick={() => setDeleteOpen(true)}
                     >
-                      <Trash
+                      <IconTrash
                         className="size-4"
                         style={{ opacity: controlsOpacity }}
                       />
@@ -612,7 +626,7 @@ export default function MediaViewer() {
                           close();
                         }}
                       >
-                        <Trash className="size-4" />
+                        <IconTrash className="size-4" />
                       </motion.button>
                       <motion.button
                         whileHover={{ scale: 1.1 }}
@@ -625,7 +639,7 @@ export default function MediaViewer() {
                         className="hover:bg-muted cursor-pointer rounded-full border px-3 py-2 text-sm font-semibold transition-colors"
                         onClick={() => setDeleteOpen(false)}
                       >
-                        <X className="size-4" />
+                        <IconX className="size-4" />
                       </motion.button>
                     </div>
                   </PopoverContent>
@@ -722,7 +736,7 @@ export default function MediaViewer() {
                       const rectHeight =
                         (visibleHeight / scaledHeight) * miniHeight;
 
-                      const rectX =
+                      const rectIconX =
                         ((interLeft - imgLeft) / scaledWidth) * miniWidth;
                       const rectY =
                         ((interTop - imgTop) / scaledHeight) * miniHeight;
@@ -736,7 +750,7 @@ export default function MediaViewer() {
                               height: Math.min(miniHeight, rectHeight),
                               transform: `translate(${Math.max(
                                 0,
-                                Math.min(miniWidth - rectWidth - 2, rectX),
+                                Math.min(miniWidth - rectWidth - 2, rectIconX),
                               )}px, ${Math.max(
                                 0,
                                 Math.min(miniHeight - rectHeight - 2, rectY),

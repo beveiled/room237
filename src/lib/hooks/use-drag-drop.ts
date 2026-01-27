@@ -47,7 +47,9 @@ export function useDragDrop() {
   );
 
   const getDragged = useCallback(() => useRoom237.getState().draggedItems, []);
-  const clear = useCallback(() => clearDraggedItems(), [clearDraggedItems]);
+  const clear = useCallback(() => {
+    clearDraggedItems();
+  }, [clearDraggedItems]);
 
   return { onDragStart, getDragged, clear, INTERNAL_DRAG_MIME };
 }

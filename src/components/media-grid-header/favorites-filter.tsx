@@ -8,7 +8,7 @@ import { useRoom237 } from "@/lib/stores";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { useMemo } from "react";
-import { Heart } from "lucide-react";
+import { IconHeart } from "@tabler/icons-react";
 import { useI18n } from "@/lib/i18n";
 
 export function FavoritesFilter() {
@@ -48,7 +48,7 @@ export function FavoritesFilter() {
           }
           title={favoritesOnly ? t("favorites.showAll") : t("favorites.show")}
         >
-          <Heart fill={favoritesOnly ? "currentColor" : "none"} />
+          <IconHeart fill={favoritesOnly ? "currentColor" : "none"} />
         </Button>
       </motion.div>
     </AnimatePresence>

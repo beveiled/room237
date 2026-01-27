@@ -7,7 +7,7 @@ import { useUpload } from "@/lib/hooks/use-upload";
 import { useRoom237 } from "@/lib/stores";
 import type { MediaEntry } from "@/lib/types";
 import { AnimatePresence, motion } from "framer-motion";
-import { Trash, X } from "lucide-react";
+import { IconTrash, IconX } from "@tabler/icons-react";
 import {
   memo,
   startTransition,
@@ -109,14 +109,14 @@ const Duplicate = memo(function Duplicate({
                 onClick={() => onDelete()}
                 variant="destructive"
               >
-                <Trash className="text-red-500" />
+                <IconTrash className="text-red-500" />
               </Button>
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setConfirm(false)}
               >
-                <X />
+                <IconX />
               </Button>
             </div>
           </motion.div>
@@ -133,7 +133,7 @@ const Duplicate = memo(function Duplicate({
         }}
         onPointerDownCapture={(e) => e.stopPropagation()}
       >
-        <Trash className="h-4 w-4" />
+        <IconTrash className="h-4 w-4" />
       </motion.button>
       <img
         src={image.thumb}
@@ -189,6 +189,9 @@ export function DuplicatesView() {
   );
   const setDuplicatesLoading = useRoom237(
     (state) => state.setDuplicatesLoading,
+  );
+  const batchOperationInProgress = useRoom237(
+    (state) => state.batchOperationInProgress,
   );
 
   const mediaByName = useMemo(() => {
@@ -296,11 +299,24 @@ export function DuplicatesView() {
 
     if (count > prev.count) {
       prevAlbumRef.current = { path: albumInfo.path, count };
-      void refreshDuplicates({ initial: false, force: true });
+      if (!batchOperationInProgress) {
+        void refreshDuplicates({ initial: false, force: true });
+      }
     } else {
       prevAlbumRef.current = { path: albumInfo.path, count };
     }
-  }, [albumInfo, albumMedias?.length, refreshDuplicates]);
+  }, [
+    albumInfo,
+    albumMedias?.length,
+    refreshDuplicates,
+    batchOperationInProgress,
+  ]);
+
+  useEffect(() => {
+    if (!batchOperationInProgress && albumInfo) {
+      void refreshDuplicates({ initial: false, force: true });
+    }
+  }, [batchOperationInProgress, albumInfo, refreshDuplicates]);
 
   if (!albumInfo) {
     return null;

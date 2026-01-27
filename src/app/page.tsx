@@ -25,7 +25,7 @@ import { useMediaWatcher } from "@/lib/hooks/use-media-watcher";
 import { usePrivacyController } from "@/lib/hooks/use-privacy-settings";
 import { useStorePersistence } from "@/lib/hooks/use-store-persistence";
 import { attachConsole } from "@tauri-apps/plugin-log";
-import { Loader } from "lucide-react";
+import { IconLoader } from "@tabler/icons-react";
 import { useEffect } from "react";
 
 export default function GalleryPage() {
@@ -68,7 +68,7 @@ export default function GalleryPage() {
   if (!storeReady) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <Loader className="size-8 animate-spin opacity-50" />
+        <IconLoader className="size-8 animate-spin opacity-50" />
       </div>
     );
   }

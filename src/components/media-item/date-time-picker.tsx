@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { useCallback, useMemo } from "react";
 import { Input } from "../ui/input";
 
@@ -163,7 +163,7 @@ export function DateTimePicker({
             className="h-8 w-8"
             onClick={() => handleMonthChange(-1)}
           >
-            <ChevronLeft className="size-4" />
+            <IconChevronLeft className="size-4" />
           </Button>
           <Button
             variant="ghost"
@@ -171,7 +171,7 @@ export function DateTimePicker({
             className="h-8 w-8"
             onClick={() => handleMonthChange(1)}
           >
-            <ChevronRight className="size-4" />
+            <IconChevronRight className="size-4" />
           </Button>
         </div>
         <div className="flex items-center gap-2">

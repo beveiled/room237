@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { useRoom237 } from "@/lib/stores";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowDownAZ, ArrowUpAZ } from "lucide-react";
+import { IconSortAscending, IconSortDescending } from "@tabler/icons-react";
 
 export function SortDirection() {
   const sortKey = useRoom237((state) => state.sortKey);
@@ -26,7 +26,7 @@ export function SortDirection() {
           variant="outline"
           onClick={() => setSortDir(sortDir === "asc" ? "desc" : "asc")}
         >
-          {sortDir === "asc" ? <ArrowDownAZ /> : <ArrowUpAZ />}
+          {sortDir === "asc" ? <IconSortAscending /> : <IconSortDescending />}
         </Button>
       </motion.div>
     </AnimatePresence>
